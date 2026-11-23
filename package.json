@@ -1,0 +1,25 @@
+{
+  "name": "meanbeanmachine",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Mean Bean Machine-style puzzle battler: exact 1993 Mega Drive rules, new cast, online multiplayer.",
+  "type": "module",
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
+  "scripts": {
+    "dev": "npm run dev -w @mbm/web",
+    "dev:server": "npm run dev -w @mbm/server",
+    "build": "npm run build -w @mbm/web",
+    "start": "npm run start -w @mbm/server",
+    "test": "npm run test -w @mbm/engine && npm run test -w @mbm/server",
+    "typecheck": "tsc -p packages/engine && tsc -p apps/web && tsc -p apps/server"
+  },
+  "devDependencies": {
+    "typescript": "^5.9.3"
+  },
+  "engines": {
+    "node": ">=22.18"
+  }
+}
