@@ -5,20 +5,22 @@ import { SOLO_KEYS } from '../input.ts';
 import { portrait } from '../render/portraits.ts';
 import { progress, saveProgress } from '../storage.ts';
 import { el, showLayer, showMenu } from '../ui.ts';
-import { BattleSession } from './battle.ts';
+import type { SceneKind } from '../render/scenes.ts';
+import { BattleSession, trackFor } from './battle.ts';
 import { CAST, type Character, HERO } from './characters.ts';
 
 const faceUrl = (c: Character, expr: Parameters<typeof portrait>[1] = 'idle'): string => portrait(c, expr).toDataURL();
 
 /** A still backdrop behind story screens. */
 class Backdrop implements Session {
+  readonly kind = 'story';
   private frame = 0;
   private readonly app: App;
-  private readonly bg: [string, string];
+  private readonly scene: SceneKind;
 
-  constructor(app: App, bg: [string, string]) {
+  constructor(app: App, scene: SceneKind) {
     this.app = app;
-    this.bg = bg;
+    this.scene = scene;
   }
 
   update(): void {
@@ -26,7 +28,7 @@ class Backdrop implements Session {
   }
 
   render(): void {
-    this.app.renderer.draw({ layout: 'none', boards: [], frame: this.frame, bg: this.bg, panels: [], info: [], banners: [], dim: true });
+    this.app.renderer.draw({ layout: 'none', boards: [], frame: this.frame, scene: this.scene, panels: [], info: [], banners: [], dim: true });
   }
 
   dispose(): void {}
@@ -57,7 +59,7 @@ export class Scenario {
 
   private story(): void {
     const foe = CAST[this.stage];
-    this.app.setSession(new Backdrop(this.app, foe.stage));
+    this.app.setSession(new Backdrop(this.app, foe.scene));
     audio.music('story');
     const foeLine = el('p');
     const heroLine = el('p');
@@ -93,15 +95,14 @@ export class Scenario {
 
   private battle(): void {
     const foe = CAST[this.stage];
-    const last = this.stage === CAST.length - 1;
     this.app.setSession(
       new BattleSession(this.app, {
         kind: 'scenario',
         stage: this.stage,
         difficulty: this.difficulty,
         games: 1,
-        music: last ? 'boss' : 'battle',
-        bg: foe.stage,
+        music: trackFor(this.stage, CAST.length),
+        scene: foe.scene,
         portraitOf: 1,
         info: `STAGE ${this.stage + 1}`,
         players: [
@@ -119,7 +120,7 @@ export class Scenario {
 
   private won(): void {
     const foe = CAST[this.stage];
-    this.app.setSession(new Backdrop(this.app, foe.stage));
+    this.app.setSession(new Backdrop(this.app, foe.scene));
     audio.music('story');
     const next = this.stage + 1;
     progress.scenario[this.difficulty] = Math.max(progress.scenario[this.difficulty], Math.min(next, CAST.length - 1));
@@ -157,7 +158,7 @@ export class Scenario {
 
   private lost(): void {
     const foe = CAST[this.stage];
-    this.app.setSession(new Backdrop(this.app, foe.stage));
+    this.app.setSession(new Backdrop(this.app, foe.scene));
     audio.music(null);
     let n = 10;
     const count = el('p', { class: 'code' }, String(n));
@@ -185,7 +186,7 @@ export class Scenario {
 
   private ending(): void {
     const boss = CAST[CAST.length - 1];
-    this.app.setSession(new Backdrop(this.app, HERO.stage));
+    this.app.setSession(new Backdrop(this.app, 'meadow'));
     audio.music('title');
     audio.sfx('win');
     const layer = showLayer(

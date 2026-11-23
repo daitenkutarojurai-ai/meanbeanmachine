@@ -9,6 +9,7 @@ export interface Settings {
   levels: [number, number];
   onlineLevel: number;
   touch: 'auto' | 'on' | 'off';
+  crt: boolean;
 }
 
 export interface Progress {
@@ -29,6 +30,7 @@ const DEFAULT_SETTINGS: Settings = {
   levels: [1, 1],
   onlineLevel: 1,
   touch: 'auto',
+  crt: false,
 };
 
 const DEFAULT_PROGRESS: Progress = {

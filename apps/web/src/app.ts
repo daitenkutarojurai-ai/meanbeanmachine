@@ -5,6 +5,8 @@ import { settings } from './storage.ts';
 import { initUi } from './ui.ts';
 
 export interface Session {
+  /** Switching between kinds (menu, story, battle) plays the iris transition. */
+  readonly kind?: string;
   /** Advance the simulation to `now` (ms). */
   update(now: number): void;
   render(): void;
@@ -40,6 +42,7 @@ export class App {
   readonly input = new Input();
   readonly canvas: HTMLCanvasElement;
   private session: Session | null = null;
+  private iris = 99;
 
   constructor() {
     this.canvas = document.getElementById('screen') as HTMLCanvasElement;
@@ -56,11 +59,13 @@ export class App {
     window.addEventListener('resize', () => this.resize());
     this.resize();
     this.updateTouch();
+    this.updateCrt();
 
     const loop = (now: number): void => {
       this.input.pollMenuPads();
       this.session?.update(now);
       this.session?.render();
+      this.drawIris();
       requestAnimationFrame(loop);
     };
     requestAnimationFrame(loop);
@@ -71,8 +76,27 @@ export class App {
   }
 
   setSession(s: Session | null): void {
+    if (s?.kind && this.session?.kind && s.kind !== this.session.kind) this.iris = 0;
     this.session?.dispose();
     this.session = s;
+  }
+
+  /** Iris-in from black, like a cartridge cutting to the next scene. */
+  private drawIris(): void {
+    if (this.iris >= 26) return;
+    const t = this.iris / 26;
+    this.iris++;
+    const g = this.renderer.g;
+    const r = t * t * Math.hypot(W, H) * 0.6;
+    g.fillStyle = '#000';
+    g.beginPath();
+    g.rect(0, 0, W, H);
+    g.arc(W / 2, H / 2, Math.max(0.5, r), 0, Math.PI * 2, true);
+    g.fill('evenodd');
+  }
+
+  updateCrt(): void {
+    document.getElementById('stage')!.classList.toggle('crt', settings.crt);
   }
 
   resize(): void {

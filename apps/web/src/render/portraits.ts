@@ -1,7 +1,7 @@
 import type { Character, Portrait } from '../game/characters.ts';
 import { type Ctx, ctx2d, ellipse, ellipseOutlined, line, makeCanvas, rect, rectOutlined, triangle } from './pixels.ts';
 
-export type Expression = 'idle' | 'happy' | 'worried' | 'ko';
+export type Expression = 'idle' | 'happy' | 'worried' | 'ko' | 'blink';
 
 const SIZE = 64;
 const cache = new Map<string, HTMLCanvasElement>();
@@ -199,6 +199,29 @@ function eyes(g: Ctx, p: Portrait, expr: Expression): void {
       line(g, cx - 3, y - 3, cx + 3, y + 3, '#000', 2);
       line(g, cx - 3, y + 3, cx + 3, y - 3, '#000', 2);
     }
+    return;
+  }
+  if (expr === 'blink') {
+    if (p.eyes === 'visor') {
+      rectOutlined(g, 14, y - 3, 36, 7, '#101018', '#000');
+      rect(g, 18, y, 28, 1, p.eye);
+      return;
+    }
+    if (p.eyes === 'goggles') {
+      for (const cx of [lx, rx]) {
+        ellipseOutlined(g, cx, y, 6, 6, '#3a3a44', '#000');
+        rect(g, cx - 4, y, 9, 2, '#111');
+      }
+      rect(g, 29, y - 1, 6, 2, '#3a3a44');
+      return;
+    }
+    if (p.eyes === 'mono') {
+      rect(g, 14, y - 6, 36, 2, '#1a1a24');
+      ellipseOutlined(g, 20, y, 4, 3, '#1a1a24', '#000');
+      rect(g, 27, y, 11, 2, '#000');
+      return;
+    }
+    for (const cx of [lx, rx]) rect(g, cx - 4, y, 9, 2, '#000');
     return;
   }
   const happy = expr === 'happy';

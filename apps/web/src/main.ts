@@ -7,3 +7,10 @@ import { preloadBeans } from './render/beans.ts';
 preloadBeans();
 const app = new App();
 new Title(app);
+
+if (new URLSearchParams(location.search).has('debug')) {
+  void import('./audio/check.ts').then((m) => {
+    (window as unknown as { __bm: unknown; __app: unknown }).__bm = m;
+    (window as unknown as { __app: unknown }).__app = app;
+  });
+}

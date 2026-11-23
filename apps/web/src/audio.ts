@@ -1,4 +1,6 @@
-// All sound is synthesised with WebAudio, so the game ships with no audio files.
+// Game audio: FM-style music, sound effects and chain shouts, all synthesised.
+import { type CompiledSong, SONGS, type SongName, compile } from './audio/songs.ts';
+import { Synth, type VoiceSpec } from './audio/synth.ts';
 
 export type Sfx =
   | 'move'
@@ -11,84 +13,56 @@ export type Sfx =
   | 'win'
   | 'menu'
   | 'select'
+  | 'back'
   | 'ready'
   | 'go'
   | 'levelUp'
-  | 'allClear';
+  | 'allClear'
+  | 'tick'
+  | 'heartbeat';
 
-export type Track = 'title' | 'battle' | 'danger' | 'boss' | 'story' | null;
+export type Track = 'title' | 'battle' | 'battle2' | 'battle3' | 'danger' | 'boss' | 'story' | null;
+export type Speaker = 'hero' | 'robot' | 'rival';
 
-const NOTE: Record<string, number> = { C: 0, D: 2, E: 4, F: 5, G: 7, A: 9, B: 11 };
-
-function midi(name: string): number {
-  const m = /^([A-G])(#|b)?(\d)$/.exec(name);
-  if (!m) return 0;
-  return 12 * (Number(m[3]) + 1) + NOTE[m[1]] + (m[2] === '#' ? 1 : m[2] === 'b' ? -1 : 0);
-}
-
-const freq = (n: number): number => 440 * 2 ** ((n - 69) / 12);
-
-function seq(s: string): (number | null)[] {
-  return s
-    .trim()
-    .split(/\s+/)
-    .filter((t) => t !== '|')
-    .map((t) => (t === '.' ? null : midi(t)));
-}
-
-interface Song {
-  bpm: number;
-  lead: (number | null)[];
-  bass: (number | null)[];
-  drums: boolean;
-}
-
-const SONGS: Record<Exclude<Track, null>, Song> = {
-  title: {
-    bpm: 132,
-    lead: seq(`C5 . E5 G5 . E5 C5 . | D5 . F5 A5 . F5 D5 . | E5 . G5 C6 . G5 E5 . | D5 F5 E5 D5 C5 . G4 .
-               C5 . E5 G5 . E5 C5 . | D5 . F5 A5 . A5 B5 . | C6 . G5 E5 . D5 E5 . | C5 . . . C5 . . .`),
-    bass: seq(`C3 . G3 . C3 . G3 . | F2 . C3 . F2 . C3 . | C3 . G3 . C3 . G3 . | G2 . D3 . G2 . B2 .
-               C3 . G3 . C3 . G3 . | F2 . C3 . F2 . C3 . | C3 . G3 . G2 . G2 . | C3 . G2 . C3 . . .`),
-    drums: true,
-  },
-  battle: {
-    bpm: 150,
-    lead: seq(`A4 . C5 E5 D5 C5 B4 . | G4 . B4 D5 C5 B4 A4 . | F4 . A4 C5 B4 A4 G4 . | E4 F4 G4 A4 B4 . E5 .
-               A4 . C5 E5 D5 C5 B4 . | G4 . B4 D5 C5 B4 A4 . | F4 . A4 C5 D5 E5 F5 . | E5 . D5 B4 A4 . . .`),
-    bass: seq(`A2 A2 A3 A2 A2 A2 A3 A2 | G2 G2 G3 G2 G2 G2 G3 G2 | F2 F2 F3 F2 F2 F2 F3 F2 | E2 E2 E3 E2 E2 E2 G#2 E2
-               A2 A2 A3 A2 A2 A2 A3 A2 | G2 G2 G3 G2 G2 G2 G3 G2 | F2 F2 F3 F2 F2 F2 F3 F2 | E2 E2 E3 E2 A2 . A2 .`),
-    drums: true,
-  },
-  danger: {
-    bpm: 184,
-    lead: seq(`E5 . E5 F5 E5 . D5 . | E5 . E5 F5 E5 . G5 . | F5 . F5 G5 F5 . E5 . | D5 . E5 F5 G#5 . B5 .`),
-    bass: seq(`A2 A3 A2 A3 A2 A3 A2 A3 | A2 A3 A2 A3 A2 A3 A2 A3 | D3 D4 D3 D4 D3 D4 D3 D4 | E3 E4 E3 E4 E3 E4 E3 E4`),
-    drums: true,
-  },
-  boss: {
-    bpm: 140,
-    lead: seq(`D5 . . A4 D5 . F5 E5 | D5 . C5 . A4 . . . | Bb4 . . F4 Bb4 . D5 C5 | Bb4 . A4 . G4 . . .
-               D5 . . A4 D5 . F5 G5 | A5 . G5 . F5 . E5 . | F5 . E5 . D5 . C#5 . | D5 . . . A4 . . .`),
-    bass: seq(`D2 . D3 . D2 . D3 . | D2 . D3 . C3 . C2 . | Bb1 . Bb2 . Bb1 . Bb2 . | G1 . G2 . A1 . A2 .
-               D2 . D3 . D2 . D3 . | F2 . F3 . C3 . C2 . | Bb1 . Bb2 . A1 . A2 . | D2 . A1 . D2 . . .`),
-    drums: true,
-  },
-  story: {
-    bpm: 96,
-    lead: seq(`E5 . G5 . A5 . G5 E5 | D5 . E5 . C5 . . . | E5 . G5 . A5 . C6 B5 | A5 . G5 . E5 . . .`),
-    bass: seq(`C3 . . . G2 . . . | F2 . . . C3 . . . | A2 . . . E2 . . . | F2 . . . G2 . . .`),
-    drums: false,
-  },
+const compiled = new Map<SongName, CompiledSong>();
+const song = (name: SongName): CompiledSong => {
+  let c = compiled.get(name);
+  if (!c) {
+    c = compile(SONGS[name]);
+    compiled.set(name, c);
+  }
+  return c;
 };
+
+/** Schedules one song step by step on a synth. Shared by live playback and offline checks. */
+export function scheduleStep(synth: Synth, c: CompiledSong, step: number, t: number): void {
+  const { def } = c;
+  const dur = 60 / def.bpm / 4;
+  const i = step % c.steps;
+  const bus = synth.music;
+  const lead = c.lead[i];
+  if (lead && def.vol.lead > 0) synth.play(def.lead, bus, t, lead.midi, lead.len * dur * 0.92, def.vol.lead, true);
+  if (def.vol.arp > 0) for (const n of c.arp[i]) synth.play(def.arp, bus, t, n.midi, n.len * dur * 0.9, def.vol.arp);
+  const bass = c.bass[i];
+  if (bass) synth.play(def.bass, bus, t, bass.midi, bass.len * dur * 0.9, def.vol.bass);
+  const d = c.drums[i];
+  const v = def.vol.drums;
+  if (v > 0 && d !== '.') {
+    if (d.includes('k')) synth.kick(bus, t, v);
+    if (d.includes('s')) synth.snare(bus, t, v * 0.8);
+    if (d.includes('h')) synth.hat(bus, t, v * 0.22);
+    if (d.includes('o')) synth.hat(bus, t, v * 0.25, true);
+    if (d.includes('c')) synth.crash(bus, t, v * 0.25);
+  }
+}
+
+const POP_SCALE = [0, 2, 4, 5, 7, 9, 11, 12, 14, 16, 17, 19];
 
 export class AudioEngine {
   private ctx: AudioContext | null = null;
-  private master: GainNode | null = null;
-  private sfxBus: GainNode | null = null;
-  private musicBus: GainNode | null = null;
-  private noise: AudioBuffer | null = null;
+  private synth: Synth | null = null;
   private track: Track = null;
+  private playing: { c: CompiledSong; loop: boolean } | null = null;
   private step = 0;
   private nextTime = 0;
   private timer: number | null = null;
@@ -100,18 +74,10 @@ export class AudioEngine {
     if (!this.ctx) {
       const Ctor = window.AudioContext ?? (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
       if (!Ctor) return;
-      this.ctx = new Ctor();
-      this.master = this.ctx.createGain();
-      this.master.connect(this.ctx.destination);
-      this.sfxBus = this.ctx.createGain();
-      this.sfxBus.connect(this.master);
-      this.musicBus = this.ctx.createGain();
-      this.musicBus.connect(this.master);
-      this.noise = this.ctx.createBuffer(1, this.ctx.sampleRate, this.ctx.sampleRate);
-      const d = this.noise.getChannelData(0);
-      for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+      this.ctx = new Ctor({ latencyHint: 'interactive' });
+      this.synth = new Synth(this.ctx);
       this.applyVolumes();
-      if (this.track) this.startScheduler();
+      if (this.track) this.start(this.track, true);
     }
     if (this.ctx.state === 'suspended') void this.ctx.resume();
   }
@@ -123,143 +89,157 @@ export class AudioEngine {
   }
 
   private applyVolumes(): void {
-    if (!this.sfxBus || !this.musicBus) return;
-    this.sfxBus.gain.value = this.sfxVol * 0.9;
-    this.musicBus.gain.value = this.musicVol * 0.55;
-  }
-
-  private tone(
-    type: OscillatorType,
-    f0: number,
-    f1: number,
-    start: number,
-    dur: number,
-    vol: number,
-    bus: GainNode,
-  ): void {
-    const ctx = this.ctx!;
-    const o = ctx.createOscillator();
-    const g = ctx.createGain();
-    o.type = type;
-    o.frequency.setValueAtTime(f0, start);
-    if (f1 !== f0) o.frequency.exponentialRampToValueAtTime(Math.max(20, f1), start + dur);
-    g.gain.setValueAtTime(0.0001, start);
-    g.gain.exponentialRampToValueAtTime(vol, start + 0.005);
-    g.gain.exponentialRampToValueAtTime(0.0001, start + dur);
-    o.connect(g);
-    g.connect(bus);
-    o.start(start);
-    o.stop(start + dur + 0.02);
-  }
-
-  private hiss(start: number, dur: number, vol: number, bus: GainNode, cutoff: number, high = false): void {
-    const ctx = this.ctx!;
-    const src = ctx.createBufferSource();
-    src.buffer = this.noise;
-    const f = ctx.createBiquadFilter();
-    f.type = high ? 'highpass' : 'lowpass';
-    f.frequency.value = cutoff;
-    const g = ctx.createGain();
-    g.gain.setValueAtTime(vol, start);
-    g.gain.exponentialRampToValueAtTime(0.0001, start + dur);
-    src.connect(f);
-    f.connect(g);
-    g.connect(bus);
-    src.start(start, Math.random() * 0.5, dur + 0.05);
-  }
-
-  sfx(name: Sfx, arg = 1): void {
-    if (!this.ctx || !this.sfxBus) return;
-    const t = this.ctx.currentTime;
-    const bus = this.sfxBus;
-    switch (name) {
-      case 'move':
-        this.tone('square', 520, 520, t, 0.03, 0.05, bus);
-        break;
-      case 'rotate':
-        this.tone('square', 700, 1100, t, 0.05, 0.05, bus);
-        break;
-      case 'land':
-        this.tone('triangle', 180, 70, t, 0.08, 0.25, bus);
-        break;
-      case 'pop': {
-        const base = 392 * 2 ** ((Math.min(arg, 12) - 1) / 6);
-        [0, 4, 7, 12].forEach((s, i) => this.tone('square', base * 2 ** (s / 12), base * 2 ** (s / 12), t + i * 0.045, 0.09, 0.07, bus));
-        this.hiss(t, 0.12, 0.12, bus, 3000, true);
-        break;
-      }
-      case 'garbageSend':
-        this.tone('sawtooth', 300, 1200, t, 0.25, 0.06, bus);
-        break;
-      case 'garbageDrop':
-        this.hiss(t, 0.35, 0.35, bus, 400);
-        this.tone('triangle', 90, 40, t, 0.3, 0.3, bus);
-        break;
-      case 'lose':
-        this.tone('square', 600, 80, t, 1.1, 0.08, bus);
-        this.tone('square', 450, 60, t + 0.15, 1.0, 0.05, bus);
-        break;
-      case 'win':
-        [60, 64, 67, 72, 76, 79, 84].forEach((n, i) => this.tone('square', freq(n), freq(n), t + i * 0.08, 0.2, 0.07, bus));
-        break;
-      case 'menu':
-        this.tone('square', 980, 980, t, 0.03, 0.04, bus);
-        break;
-      case 'select':
-        this.tone('square', 660, 660, t, 0.06, 0.05, bus);
-        this.tone('square', 1320, 1320, t + 0.06, 0.1, 0.05, bus);
-        break;
-      case 'ready':
-        this.tone('square', 523, 523, t, 0.15, 0.06, bus);
-        break;
-      case 'go':
-        this.tone('square', 1046, 1046, t, 0.3, 0.07, bus);
-        break;
-      case 'levelUp':
-        this.tone('triangle', 400, 1600, t, 0.3, 0.12, bus);
-        break;
-      case 'allClear':
-        [72, 76, 79, 84, 88, 91, 96].forEach((n, i) => this.tone('triangle', freq(n), freq(n), t + i * 0.05, 0.25, 0.12, bus));
-        break;
-    }
+    if (!this.synth) return;
+    this.synth.sfx.gain.value = this.sfxVol;
+    this.synth.music.gain.value = this.musicVol * 0.85;
   }
 
   music(track: Track): void {
-    if (track === this.track) return;
+    if (track === this.track && this.playing) return;
     this.track = track;
+    if (!track) this.stop();
+    else this.start(track, true);
+  }
+
+  /** One-shot tune (win/lose). Music resumes when the next `music()` call arrives. */
+  jingle(name: 'win' | 'lose'): void {
+    this.track = null;
+    this.start(name, false);
+  }
+
+  private start(name: SongName, loop: boolean): void {
+    this.stop();
+    this.playing = { c: song(name), loop };
     this.step = 0;
-    if (this.timer !== null) {
-      clearInterval(this.timer);
-      this.timer = null;
-    }
-    if (track && this.ctx) this.startScheduler();
-  }
-
-  private startScheduler(): void {
     if (!this.ctx) return;
-    this.nextTime = this.ctx.currentTime + 0.05;
-    this.timer = window.setInterval(() => this.schedule(), 25);
+    this.nextTime = this.ctx.currentTime + 0.06;
+    this.timer = window.setInterval(() => this.pump(), 25);
   }
 
-  private schedule(): void {
-    if (!this.ctx || !this.track || !this.musicBus) return;
-    const song = SONGS[this.track];
-    const stepDur = 60 / song.bpm / 2;
-    // Never try to catch up more than a moment after the tab sleeps.
-    if (this.nextTime < this.ctx.currentTime - 0.2) this.nextTime = this.ctx.currentTime + 0.05;
+  private stop(): void {
+    if (this.timer !== null) clearInterval(this.timer);
+    this.timer = null;
+    this.playing = null;
+  }
+
+  private pump(): void {
+    if (!this.ctx || !this.synth || !this.playing) return;
+    const { c, loop } = this.playing;
+    const dur = 60 / c.def.bpm / 4;
+    // After the tab sleeps, pick up from now instead of rushing to catch up.
+    if (this.nextTime < this.ctx.currentTime - 0.25) this.nextTime = this.ctx.currentTime + 0.05;
     while (this.nextTime < this.ctx.currentTime + 0.12) {
-      const i = this.step % song.lead.length;
-      const lead = song.lead[i];
-      const bass = song.bass[this.step % song.bass.length];
-      if (lead) this.tone('square', freq(lead), freq(lead), this.nextTime, stepDur * 0.9, 0.05, this.musicBus);
-      if (bass) this.tone('triangle', freq(bass), freq(bass), this.nextTime, stepDur * 0.85, 0.13, this.musicBus);
-      if (song.drums) {
-        if (this.step % 4 === 0) this.tone('sine', 140, 40, this.nextTime, 0.12, 0.3, this.musicBus);
-        if (this.step % 8 === 4) this.hiss(this.nextTime, 0.1, 0.12, this.musicBus, 1800);
-        if (this.step % 2 === 1) this.hiss(this.nextTime, 0.03, 0.04, this.musicBus, 7000, true);
+      if (!loop && this.step >= c.steps) {
+        this.stop();
+        return;
       }
-      this.nextTime += stepDur;
+      scheduleStep(this.synth, c, this.step, this.nextTime);
+      this.nextTime += dur;
       this.step++;
+    }
+  }
+
+  sfx(name: Sfx, arg = 1): void {
+    if (name === 'win' || name === 'lose') return this.jingle(name);
+    const s = this.synth;
+    if (!this.ctx || !s) return;
+    const t = this.ctx.currentTime + 0.005;
+    const bus = s.sfx;
+    switch (name) {
+      case 'move':
+        s.sweep(0.125, bus, t, 1500, 1300, 0.025, 0.035);
+        break;
+      case 'rotate':
+        s.sweep(0.25, bus, t, 700, 1400, 0.055, 0.04);
+        break;
+      case 'land':
+        s.sweep('sine', bus, t, 230, 70, 0.1, 0.2);
+        s.noiseHit(bus, t, 0.04, 0.05, 'lowpass', 500);
+        break;
+      case 'pop': {
+        const f = 523 * 2 ** (POP_SCALE[Math.min(arg - 1, POP_SCALE.length - 1)] / 12);
+        s.fm({ ratio: 2, index: 4, indexEnd: 0.4, indexTime: 0.15, attack: 0.002, decay: 0.18, sustain: 0.15, release: 0.12 }, bus, t, f, 0.12, 0.16, true);
+        s.sweep('sine', bus, t, f * 0.5, f * 1.6, 0.09, 0.12);
+        s.noiseHit(bus, t, 0.12, 0.08, 'highpass', 5000);
+        break;
+      }
+      case 'garbageSend':
+        s.noiseHit(bus, t, 0.4, 0.14, 'bandpass', 300, 1.2, 3500);
+        [0, 4, 7, 12].forEach((k, i) => s.sweep(0.25, bus, t + i * 0.035, 880 * 2 ** (k / 12), 880 * 2 ** (k / 12), 0.06, 0.03, true));
+        s.sweep(0.5, bus, t + 0.45, 990, 990, 0.07, 0.035);
+        s.sweep(0.5, bus, t + 0.56, 990, 990, 0.07, 0.035);
+        break;
+      case 'garbageDrop': {
+        const n = Math.min(5, 2 + Math.floor(arg / 8));
+        for (let i = 0; i < n; i++) {
+          s.sweep('sine', bus, t + i * 0.07, 130 - i * 8, 38, 0.2, 0.28);
+          s.noiseHit(bus, t + i * 0.07, 0.12, 0.1, 'lowpass', 420);
+        }
+        break;
+      }
+      case 'menu':
+        s.sweep(0.25, bus, t, 1250, 1250, 0.03, 0.03);
+        break;
+      case 'select':
+        s.sweep(0.25, bus, t, 880, 880, 0.05, 0.035);
+        s.sweep(0.25, bus, t + 0.05, 1760, 1760, 0.08, 0.035, true);
+        break;
+      case 'back':
+        s.sweep(0.25, bus, t, 900, 500, 0.08, 0.035);
+        break;
+      case 'ready':
+        s.fm({ ratio: 1, index: 1, indexEnd: 3, indexTime: 0.05, attack: 0.01, decay: 0.15, sustain: 0.6, release: 0.1, chorus: 7 }, bus, t, 392, 0.18, 0.12);
+        s.fm({ ratio: 1, index: 1, indexEnd: 3, indexTime: 0.05, attack: 0.01, decay: 0.15, sustain: 0.6, release: 0.1, chorus: 7 }, bus, t, 494, 0.18, 0.09);
+        break;
+      case 'go':
+        for (const f of [523, 659, 784, 1047]) s.fm({ ratio: 1, index: 1, indexEnd: 3.5, indexTime: 0.05, attack: 0.01, decay: 0.2, sustain: 0.6, release: 0.2, chorus: 7 }, bus, t, f, 0.3, 0.08, true);
+        s.crash(bus, t, 0.08);
+        break;
+      case 'levelUp':
+        [0, 4, 7, 12, 16, 19].forEach((k, i) => s.sweep(0.125, bus, t + i * 0.04, 660 * 2 ** (k / 12), 660 * 2 ** (k / 12), 0.07, 0.035, true));
+        break;
+      case 'allClear':
+        [0, 4, 7, 12, 16, 19, 24].forEach((k, i) =>
+          s.fm({ ratio: 3.5, index: 2.5, indexEnd: 0.3, indexTime: 0.4, attack: 0.002, decay: 0.5, sustain: 0.2, release: 0.3 }, bus, t + i * 0.06, 784 * 2 ** (k / 12), 0.2, 0.08, true),
+        );
+        break;
+      case 'tick':
+        s.sweep(0.5, bus, t, 2000, 2000, 0.02, 0.03);
+        break;
+      case 'heartbeat':
+        s.sweep('sine', bus, t, 90, 45, 0.12, 0.3);
+        s.sweep('sine', bus, t + 0.18, 85, 42, 0.12, 0.22);
+        break;
+    }
+  }
+
+  /** A shout for chains of 2 or more; bigger chains, bigger shouts. */
+  voice(chain: number, who: Speaker): void {
+    const s = this.synth;
+    if (!this.ctx || !s || chain < 2) return;
+    const t = this.ctx.currentTime + 0.01;
+    const base = who === 'hero' ? 330 : who === 'rival' ? 240 : 150;
+    const robot = who === 'robot';
+    const shout = (v: Partial<VoiceSpec> & Pick<VoiceSpec, 'vowels' | 'dur'>, at = 0, up = 0): void =>
+      s.voice(s.sfx, t + at, { pitch: base * 2 ** (up / 12), glide: 3, vol: 0.55, breath: 0.7, robot, ...v });
+    switch (Math.min(chain, 6)) {
+      case 2:
+        shout({ vowels: [['u', 1]], dur: 0.15 });
+        break;
+      case 3:
+        shout({ vowels: [['a', 1]], dur: 0.22, glide: 4 }, 0, 2);
+        break;
+      case 4:
+        shout({ vowels: [['o', 1]], dur: 0.13 }, 0, 2);
+        shout({ vowels: [['i', 0.3], ['a', 1]], dur: 0.24, glide: 5, breath: 0 }, 0.15, 5);
+        break;
+      case 5:
+        shout({ vowels: [['i', 0.3], ['a', 1]], dur: 0.16, breath: 0 }, 0, 4);
+        shout({ vowels: [['a', 1]], dur: 0.28, glide: 6 }, 0.18, 7);
+        break;
+      default:
+        shout({ vowels: [['i', 0.3], ['e', 0.5], ['a', 2.5]], dur: 0.62, glide: 8, breath: 0 }, 0, 6);
+        break;
     }
   }
 }

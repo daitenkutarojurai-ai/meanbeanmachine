@@ -134,7 +134,7 @@ export function showMenu(opts: {
       }
       render();
     } else if (a === 'back' && opts.onBack) {
-      audio.sfx('menu');
+      audio.sfx('back');
       opts.onBack();
     }
   });

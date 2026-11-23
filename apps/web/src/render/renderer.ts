@@ -1,24 +1,15 @@
-import {
-  CELL_PX,
-  COLS,
-  GARBAGE,
-  Phase,
-  type PlayerSim,
-  ROT_DX,
-  ROT_DY,
-  ROWS,
-  type SimEvent,
-  VISIBLE_TOP,
-  idx,
-} from '@mbm/engine';
-import { BEAN_COLOR_CSS, CONNECT_DOWN, CONNECT_LEFT, CONNECT_RIGHT, CONNECT_UP, beanSprite } from './beans.ts';
-import { drawText } from './font.ts';
+import { CELL_PX, COLS, DEATH_X, GARBAGE, Phase, type PlayerSim, ROT_DX, ROT_DY, ROWS, VISIBLE_TOP, idx } from '@mbm/engine';
+import type { Character } from '../game/characters.ts';
+import { CONNECT_DOWN, CONNECT_LEFT, CONNECT_RIGHT, CONNECT_UP, type EyeStyle, beanSprite } from './beans.ts';
+import { drawText, fancyText } from './font.ts';
+import { Effects, FIELD_H, FIELD_W } from './fx.ts';
 import { type Ctx, ctx2d, rect } from './pixels.ts';
+import { type Expression, portrait } from './portraits.ts';
+import { type SceneKind, drawScene } from './scenes.ts';
 
+export { FIELD_H, FIELD_W };
 export const W = 320;
 export const H = 224;
-export const FIELD_W = COLS * CELL_PX;
-export const FIELD_H = (ROWS - VISIBLE_TOP) * CELL_PX;
 
 export interface BoardView {
   sim: PlayerSim;
@@ -28,370 +19,315 @@ export interface BoardView {
   pending: number;
   deadAt?: number;
   shake: number;
+  mood?: 'win' | 'lose';
 }
+
+export type Tone = 'gold' | 'green' | 'red' | 'blue';
 
 export interface Banner {
   text: string;
   sub?: string;
-  color?: string;
+  tone?: Tone;
   /** Board index to centre on; omitted = whole screen. */
   board?: number;
+  /** Frames since the banner appeared, for its entrance animation. */
+  age?: number;
+  style?: 'drop' | 'zoom' | 'bounce';
 }
 
 export interface Panel {
   label: string;
-  value: string;
+  /** Shown as-is when set (e.g. the "40*8" chain readout). */
+  value?: string;
+  /** Otherwise a score that counts up smoothly. */
+  score?: number;
   color?: string;
+}
+
+export interface Face {
+  character: Character;
+  expr: Expression;
+  name?: string;
 }
 
 export interface Scene {
   layout: 'versus' | 'solo' | 'none';
   boards: BoardView[];
   frame: number;
-  bg: [string, string];
-  portrait?: HTMLCanvasElement | null;
-  portraitLeft?: HTMLCanvasElement | null;
+  scene: SceneKind;
+  face?: Face | null;
+  faceLeft?: Face | null;
   panels: Panel[];
   info: string[];
   banners: Banner[];
   dim?: boolean;
 }
 
-interface Particle {
-  x: number;
-  y: number;
-  vx: number;
-  vy: number;
-  life: number;
-  max: number;
-  color: string;
-  size: number;
-}
+const TONES: Record<Tone, [string, string]> = {
+  gold: ['#fff27a', '#ff9c1a'],
+  green: ['#c8ffb8', '#22c44a'],
+  red: ['#ffc4cc', '#ff2e4c'],
+  blue: ['#c8e8ff', '#3a88ff'],
+};
 
-interface Popup {
-  x: number;
-  y: number;
-  text: string;
-  life: number;
-  scale: number;
-}
-
-interface Orb {
-  x0: number;
-  y0: number;
-  x1: number;
-  y1: number;
-  t: number;
-  dur: number;
-  size: number;
-}
-
-const CHAIN_COLORS = ['#ffffff', '#ffe040', '#ff9030', '#ff4060', '#e060ff', '#60c0ff', '#60ff90'];
-
-/** Short-lived eye candy driven by simulation events. */
-export class Effects {
-  particles: Particle[] = [];
-  popups: Popup[] = [];
-  orbs: Orb[] = [];
-  /** "base x bonus" readout per board while a chain is resolving. */
-  stepText: { text: string; life: number }[] = [];
-  private popCells: ({ x: number; y: number; color: number }[] | null)[] = [];
-
-  reset(): void {
-    this.particles = [];
-    this.popups = [];
-    this.orbs = [];
-    this.stepText = [];
-    this.popCells = [];
-  }
-
-  handle(board: number, events: SimEvent[], views: BoardView[]): void {
-    const v = views[board];
-    if (!v) return;
-    for (const e of events) {
-      if (e.type === 'pop') {
-        let sx = 0;
-        let sy = 0;
-        for (const c of e.cells) {
-          const cx = v.fx + c.x * CELL_PX + 8;
-          const cy = v.fy + (c.y - VISIBLE_TOP) * CELL_PX + 8;
-          sx += cx;
-          sy += cy;
-        }
-        const n = e.cells.length || 1;
-        this.popCells[board] = e.cells;
-        this.stepText[board] ={ text: `${e.score.base}*${e.score.bonus || 1}`, life: 70 };
-        if (e.chain >= 2) {
-          this.popups.push({
-            x: Math.min(Math.max(sx / n, v.fx + 30), v.fx + FIELD_W - 30),
-            y: sy / n - 8,
-            text: `${e.chain} CHAIN!`,
-            life: 60,
-            scale: 1,
-          });
-        }
-      } else if (e.type === 'popped') {
-        const cells = this.popCells[board];
-        if (cells) this.burst(v, cells);
-        this.popCells[board] = null;
-      } else if (e.type === 'chainEnd' && e.garbage > 0 && views.length > 1) {
-        const target = views[1 - board];
-        this.orbs.push({
-          x0: v.fx + FIELD_W / 2,
-          y0: v.fy + FIELD_H / 2,
-          x1: target.fx + FIELD_W / 2,
-          y1: target.fy - 8,
-          t: 0,
-          dur: 34,
-          size: Math.min(10, 3 + Math.floor(Math.log2(e.garbage + 1))),
-        });
-      } else if (e.type === 'garbageDrop' && e.count >= 12) {
-        v.shake = Math.min(12, 4 + e.count / 4);
-      }
-    }
-  }
-
-  burst(v: BoardView, cells: { x: number; y: number; color: number }[]): void {
-    for (const c of cells) {
-      const cx = v.fx + c.x * CELL_PX + 8;
-      const cy = v.fy + (c.y - VISIBLE_TOP) * CELL_PX + 8;
-      for (let k = 0; k < 5; k++) {
-        const a = (k / 5) * Math.PI * 2 + Math.random();
-        const sp = 1 + Math.random() * 1.6;
-        this.particles.push({
-          x: cx,
-          y: cy,
-          vx: Math.cos(a) * sp,
-          vy: Math.sin(a) * sp - 1.2,
-          life: 26 + Math.random() * 10,
-          max: 36,
-          color: BEAN_COLOR_CSS[c.color] ?? '#fff',
-          size: 2 + (Math.random() < 0.4 ? 1 : 0),
-        });
-      }
-    }
-  }
-
-  update(views: BoardView[]): void {
-    for (const p of this.particles) {
-      p.x += p.vx;
-      p.y += p.vy;
-      p.vy += 0.12;
-      p.life--;
-    }
-    this.particles = this.particles.filter((p) => p.life > 0);
-    for (const p of this.popups) {
-      p.y -= 0.35;
-      p.life--;
-    }
-    this.popups = this.popups.filter((p) => p.life > 0);
-    for (const o of this.orbs) o.t++;
-    this.orbs = this.orbs.filter((o) => o.t <= o.dur);
-    for (const s of this.stepText) if (s) s.life--;
-    for (const v of views) if (v.shake > 0) v.shake = Math.max(0, v.shake - 0.6);
-  }
-
-  draw(g: Ctx, frame: number): void {
-    for (const p of this.particles) {
-      g.globalAlpha = Math.min(1, p.life / 12);
-      rect(g, p.x, p.y, p.size, p.size, p.color);
-    }
-    g.globalAlpha = 1;
-    for (const o of this.orbs) {
-      const t = o.t / o.dur;
-      const x = o.x0 + (o.x1 - o.x0) * t;
-      const y = o.y0 + (o.y1 - o.y0) * t - Math.sin(t * Math.PI) * 40;
-      g.fillStyle = 'rgba(255,240,160,0.35)';
-      g.beginPath();
-      g.arc(x, y, o.size + 3, 0, Math.PI * 2);
-      g.fill();
-      g.fillStyle = '#fff8d0';
-      g.beginPath();
-      g.arc(x, y, o.size, 0, Math.PI * 2);
-      g.fill();
-    }
-    for (const p of this.popups) {
-      const col = CHAIN_COLORS[(Math.floor(frame / 3) + p.text.length) % CHAIN_COLORS.length];
-      drawText(g, p.text, p.x, p.y, { color: col, outline: '#000', align: 'center', scale: p.scale });
-    }
-  }
-}
+const hash = (n: number): number => {
+  let h = Math.imul(n ^ 0x9e3779b9, 0x85ebca6b) >>> 0;
+  h = Math.imul(h ^ (h >>> 13), 0xc2b2ae35) >>> 0;
+  return (h ^ (h >>> 16)) >>> 0;
+};
 
 export class Renderer {
   readonly g: Ctx;
   readonly effects = new Effects();
-  private gearAngle = 0;
+  private shown = new Map<number, number>();
+  private nextAnim = new Map<number, { key: string; t: number }>();
 
   constructor(canvas: HTMLCanvasElement) {
     this.g = ctx2d(canvas);
   }
 
+  /** Forget per-match animation state (score counters, NEXT slides). */
+  resetHud(): void {
+    this.shown.clear();
+    this.nextAnim.clear();
+  }
+
   draw(scene: Scene): void {
     const g = this.g;
-    this.gearAngle += 0.004;
-    this.background(scene);
+    drawScene(g, scene.scene, scene.frame);
+    const fx = this.effects;
+    const sx = fx.shake > 0 ? Math.round(Math.sin(scene.frame * 1.9) * fx.shake) : 0;
+    const sy = fx.shake > 0 ? Math.round(Math.cos(scene.frame * 2.3) * fx.shake) : 0;
+    g.save();
+    g.translate(sx, sy);
     if (scene.layout === 'versus') this.versusHud(scene);
     else if (scene.layout === 'solo') this.soloHud(scene);
-    scene.boards.forEach((b) => this.board(b, scene.frame));
-    this.effects.draw(g, scene.frame);
+    scene.boards.forEach((b, i) => this.board(b, i, scene.frame));
+    fx.draw(g, scene.frame);
+    g.restore();
+    if (fx.flash > 0) {
+      g.fillStyle = `rgba(255,255,255,${fx.flash})`;
+      g.fillRect(0, 0, W, H);
+    }
     if (scene.dim) {
-      g.fillStyle = 'rgba(0,0,0,0.55)';
+      g.fillStyle = 'rgba(0,0,0,0.5)';
       g.fillRect(0, 0, W, H);
     }
     for (const b of scene.banners) this.banner(scene, b);
   }
 
-  // ------------------------------------------------------------- backdrop
+  // ------------------------------------------------------------- frames and HUD
 
-  private background(scene: Scene): void {
+  private metalBox(x: number, y: number, w: number, h: number): void {
     const g = this.g;
-    const grad = g.createLinearGradient(0, 0, 0, H);
-    grad.addColorStop(0, scene.bg[0]);
-    grad.addColorStop(1, scene.bg[1]);
-    g.fillStyle = grad;
-    g.fillRect(0, 0, W, H);
-    // Scrolling checker.
-    const off = (scene.frame * 0.25) % 32;
-    g.fillStyle = 'rgba(255,255,255,0.035)';
-    for (let y = -32; y < H + 32; y += 32)
-      for (let x = -32; x < W + 32; x += 32) {
-        g.fillRect(Math.round(x + off), Math.round(y + off), 16, 16);
-        g.fillRect(Math.round(x + off + 16), Math.round(y + off + 16), 16, 16);
-      }
-    // The machine's gears turning in the background.
-    this.gear(160, 200, 46, 14, this.gearAngle, 'rgba(0,0,0,0.25)');
-    this.gear(110, 120, 26, 10, -this.gearAngle * 1.7, 'rgba(0,0,0,0.18)');
-    this.gear(212, 96, 30, 11, -this.gearAngle * 1.5, 'rgba(0,0,0,0.18)');
-  }
-
-  private gear(cx: number, cy: number, r: number, teeth: number, a: number, color: string): void {
-    const g = this.g;
-    g.fillStyle = color;
-    g.beginPath();
-    for (let i = 0; i < teeth * 2; i++) {
-      const rr = i % 2 ? r : r + 6;
-      const a0 = a + (i / (teeth * 2)) * Math.PI * 2;
-      const a1 = a + ((i + 1) / (teeth * 2)) * Math.PI * 2;
-      g.lineTo(cx + Math.cos(a0) * rr, cy + Math.sin(a0) * rr);
-      g.lineTo(cx + Math.cos(a1) * rr, cy + Math.sin(a1) * rr);
+    rect(g, x - 4, y - 4, w + 8, h + 8, '#05040c');
+    rect(g, x - 3, y - 3, w + 6, h + 6, '#6a7090');
+    rect(g, x - 3, y - 3, w + 6, 1, '#c8d0e8');
+    rect(g, x - 3, y - 3, 1, h + 6, '#a8b0cc');
+    rect(g, x - 3, y + h + 2, w + 6, 1, '#2c3046');
+    rect(g, x + w + 2, y - 3, 1, h + 6, '#3a3e56');
+    rect(g, x - 1, y - 1, w + 2, h + 2, '#12142a');
+    for (const [rx, ry] of [[x - 2, y - 2], [x + w, y - 2], [x - 2, y + h], [x + w, y + h]]) {
+      rect(g, rx, ry, 2, 2, '#eef2ff');
+      rect(g, rx + 1, ry + 1, 1, 1, '#4a4e66');
     }
-    g.closePath();
-    g.arc(cx, cy, r * 0.35, 0, Math.PI * 2, true);
-    g.fill();
   }
 
-  private frameBox(x: number, y: number, w: number, h: number): void {
+  private panelBg(x: number, y: number, w: number, h: number): void {
     const g = this.g;
-    rect(g, x - 3, y - 3, w + 6, h + 6, '#000000');
-    rect(g, x - 2, y - 2, w + 4, h + 4, '#8a90a8');
-    rect(g, x - 1, y - 1, w + 2, h + 2, '#30344a');
-    g.fillStyle = 'rgba(8,8,20,0.88)';
-    g.fillRect(x, y, w, h);
+    g.fillStyle = 'rgba(6,4,18,0.62)';
+    g.fillRect(x + 1, y, w - 2, h);
+    g.fillRect(x, y + 1, w, h - 2);
   }
-
-  // ------------------------------------------------------------- HUD
 
   private versusHud(scene: Scene): void {
     const g = this.g;
+    this.panelBg(117, 1, 86, 50);
     drawText(g, 'NEXT', 160, 4, { color: '#ffe060', align: 'center' });
-    scene.boards.forEach((b, i) => this.nextBox(b.sim, i === 0 ? 124 : 178, 14));
-    if (scene.portrait) {
-      this.frameBox(128, 56, 64, 64);
-      g.drawImage(scene.portrait, 128, 56);
-    }
-    let y = 128;
-    for (const p of scene.panels) {
+    scene.boards.forEach((b, i) => this.nextBox(b.sim, i, i === 0 ? 125 : 177, 15));
+    if (scene.face) this.face(scene.face, 128, 56, scene.frame);
+    let y = 136;
+    this.panelBg(115, y - 3, 90, 88);
+    scene.panels.forEach((p, i) => {
       drawText(g, p.label, 160, y, { color: p.color ?? '#a0c8ff', align: 'center' });
-      drawText(g, p.value, 160, y + 10, { align: 'center' });
-      y += 24;
-    }
+      drawText(g, this.panelValue(p, i), 160, y + 10, { align: 'center' });
+      y += 23;
+    });
     for (const line of scene.info) {
-      drawText(g, line, 160, y, { color: '#ffd0a0', align: 'center' });
+      if (line) drawText(g, line, 160, y, { color: '#ffd0a0', align: 'center' });
       y += 10;
     }
   }
 
   private soloHud(scene: Scene): void {
     const g = this.g;
-    if (scene.portraitLeft) {
-      this.frameBox(24, 24, 64, 64);
-      g.drawImage(scene.portraitLeft, 24, 24);
-    }
-    drawText(g, 'NEXT', 248, 12, { color: '#ffe060', align: 'center' });
-    if (scene.boards[0]) this.nextBox(scene.boards[0].sim, 239, 22);
-    let y = 74;
-    for (const p of scene.panels) {
+    if (scene.faceLeft) this.face(scene.faceLeft, 24, 22, scene.frame);
+    this.panelBg(214, 6, 70, 196);
+    drawText(g, 'NEXT', 248, 10, { color: '#ffe060', align: 'center' });
+    if (scene.boards[0]) this.nextBox(scene.boards[0].sim, 0, 240, 21);
+    let y = 70;
+    scene.panels.forEach((p, i) => {
       drawText(g, p.label, 248, y, { color: p.color ?? '#a0c8ff', align: 'center' });
-      drawText(g, p.value, 248, y + 10, { align: 'center' });
+      drawText(g, this.panelValue(p, i), 248, y + 10, { align: 'center' });
       y += 26;
-    }
-    let iy = 100;
+    });
+    let iy = 112;
+    this.panelBg(22, iy - 4, 68, scene.info.length * 10 + 6);
     for (const line of scene.info) {
       drawText(g, line, 56, iy, { color: '#ffd0a0', align: 'center' });
       iy += 10;
     }
   }
 
-  private nextBox(sim: PlayerSim, x: number, y: number): void {
-    this.frameBox(x, y, 18, 34);
+  private panelValue(p: Panel, i: number): string {
+    if (p.value !== undefined) return p.value;
+    const target = p.score ?? 0;
+    let shown = this.shown.get(i) ?? target;
+    if (shown > target) shown = target;
+    if (shown < target) shown = Math.min(target, shown + Math.max(1, Math.ceil((target - shown) * 0.22)));
+    this.shown.set(i, shown);
+    return String(Math.floor(shown)).padStart(8, '0');
+  }
+
+  private face(f: Face, x: number, y: number, frame: number): void {
+    const g = this.g;
+    this.metalBox(x, y, 64, 64);
+    const calm = f.expr === 'idle' || f.expr === 'worried';
+    const blink = calm && (frame + hash(f.character.id.length * 31)) % 230 < 7;
+    const bob = f.expr === 'ko' ? 0 : Math.round(Math.sin(frame / (f.expr === 'worried' ? 6 : 22)) * (f.expr === 'worried' ? 1 : 1.2));
+    const jitter = f.expr === 'worried' && frame % 40 < 4 ? (frame % 2 ? 1 : -1) : 0;
+    g.save();
+    g.beginPath();
+    g.rect(x, y, 64, 64);
+    g.clip();
+    g.drawImage(portrait(f.character, blink ? 'blink' : f.expr), x + jitter, y + bob);
+    g.restore();
+    if (f.name) {
+      const label = f.name.toUpperCase().slice(0, 14);
+      this.panelBg(x - 6, y + 66, 76, 11);
+      drawText(g, label, x + 32, y + 68, { color: '#ffffff', align: 'center' });
+    }
+  }
+
+  private nextBox(sim: PlayerSim, board: number, x: number, y: number): void {
+    const g = this.g;
+    this.metalBox(x, y, 18, 34);
+    g.fillStyle = 'rgba(10,12,30,0.9)';
+    g.fillRect(x, y, 18, 34);
     if (!sim.alive) return;
     const [pivot, child] = sim.nextPair;
-    this.g.drawImage(beanSprite(child), x + 1, y + 1);
-    this.g.drawImage(beanSprite(pivot), x + 1, y + 17);
+    const key = `${sim.piecesPlaced}:${pivot}${child}`;
+    let a = this.nextAnim.get(board);
+    if (!a || a.key !== key) {
+      a = { key, t: a ? 0 : 99 };
+      this.nextAnim.set(board, a);
+    }
+    a.t++;
+    const off = a.t < 9 ? Math.round((1 - a.t / 9) ** 2 * 20) : 0;
+    g.save();
+    g.beginPath();
+    g.rect(x, y, 18, 34);
+    g.clip();
+    g.drawImage(beanSprite(child), x + 1, y + 1 + off);
+    g.drawImage(beanSprite(pivot), x + 1, y + 17 + off);
+    g.restore();
   }
 
   // ------------------------------------------------------------- the well
 
-  private board(v: BoardView, frame: number): void {
+  private danger(sim: PlayerSim): boolean {
+    for (let x = 0; x < COLS; x++) {
+      for (let y = VISIBLE_TOP; y < ROWS; y++) {
+        if (sim.field[idx(x, y)]) {
+          const h = ROWS - y;
+          if (h >= (x === DEATH_X ? 9 : 11)) return true;
+          break;
+        }
+      }
+    }
+    return false;
+  }
+
+  private board(v: BoardView, index: number, frame: number): void {
     const g = this.g;
     const sim = v.sim;
-    const sx = v.shake > 0 ? Math.round(Math.sin(frame * 1.7) * v.shake) : 0;
-    const fx = v.fx + sx;
+    const bx = v.shake > 0 ? Math.round(Math.sin(frame * 1.7) * v.shake) : 0;
+    const fx = v.fx + bx;
     const fy = v.fy;
-    this.frameBox(fx, fy, FIELD_W, FIELD_H);
-    g.fillStyle = 'rgba(255,255,255,0.025)';
-    for (let x = 0; x < COLS; x += 2) g.fillRect(fx + x * CELL_PX, fy, CELL_PX, FIELD_H);
-    // The spawn column's danger mark.
-    g.fillStyle = 'rgba(255,60,60,0.18)';
-    g.fillRect(fx + 2 * CELL_PX + 3, fy + 3, 10, 10);
+    const danger = sim.alive && !v.mood && this.danger(sim);
+
+    this.metalBox(fx, fy, FIELD_W, FIELD_H);
+    const glass = g.createLinearGradient(0, fy, 0, fy + FIELD_H);
+    glass.addColorStop(0, 'rgba(22,26,56,0.93)');
+    glass.addColorStop(1, 'rgba(8,8,22,0.95)');
+    g.fillStyle = glass;
+    g.fillRect(fx, fy, FIELD_W, FIELD_H);
+    for (let cy = 1; cy < 12; cy++) for (let cx = 1; cx < COLS; cx++) rect(g, fx + cx * CELL_PX, fy + cy * CELL_PX, 1, 1, 'rgba(255,255,255,0.07)');
+    // The X: a bean here when the next pair is due ends the game.
+    const xx = fx + DEATH_X * CELL_PX;
+    g.fillStyle = danger && frame % 30 < 15 ? 'rgba(255,60,80,0.75)' : 'rgba(255,60,80,0.3)';
+    for (let k = 2; k < 14; k++) {
+      g.fillRect(xx + k, fy + k, 1, 1);
+      g.fillRect(xx + 15 - k, fy + k, 1, 1);
+    }
 
     g.save();
     g.beginPath();
     g.rect(fx, fy, FIELD_W, FIELD_H);
     g.clip();
 
-    const deadOffset = v.deadAt !== undefined ? Math.min(400, ((frame - v.deadAt) ** 2) * 0.08) : 0;
-
-    // Cells hidden under a moving bean are drawn by the faller instead.
+    const dead = v.deadAt !== undefined;
+    const since = dead ? frame - v.deadAt! : 0;
     const covered = new Set<number>();
     for (const f of sim.fallers) if (!f.landed || f.squash > 0) covered.add(idx(f.x, f.toY));
     const popping = sim.phase === Phase.Flash ? new Set(sim.popping) : null;
     const blinkOn = popping !== null && Math.floor(frame / 3) % 2 === 0;
+    const mood: EyeStyle = v.mood === 'win' ? 'happy' : v.mood === 'lose' || dead ? 'closed' : danger ? 'up' : 'open';
 
     for (let y = VISIBLE_TOP; y < ROWS; y++) {
       for (let x = 0; x < COLS; x++) {
         const i = idx(x, y);
         const c = sim.field[i];
         if (!c || covered.has(i)) continue;
-        const flash = popping?.has(i) && blinkOn;
-        const conn = c === GARBAGE ? 0 : this.connections(sim, x, y, c, covered);
-        const px = fx + x * CELL_PX;
-        const py = fy + (y - VISIBLE_TOP) * CELL_PX + deadOffset * (1 + x * 0.15);
-        g.drawImage(beanSprite(c, conn, !!flash, flash ? 'wide' : 'open'), px, Math.round(py));
+        const isPop = popping?.has(i) ?? false;
+        const conn = c === GARBAGE || dead ? 0 : this.connections(sim, x, y, c, covered);
+        let eyes: EyeStyle = mood;
+        if (isPop) eyes = 'wide';
+        else if (mood === 'open') {
+          const h = hash(i + index * 97);
+          if ((frame + (h % 997)) % (170 + (h % 150)) < 6) eyes = 'blink';
+        }
+        let px = fx + x * CELL_PX;
+        let py = fy + (y - VISIBLE_TOP) * CELL_PX;
+        if (isPop) px += frame % 4 < 2 ? 1 : -1;
+        if (v.mood === 'win') py -= Math.max(0, Math.round(Math.sin(frame * 0.25 + x * 0.9) * 2));
+        const sprite = beanSprite(c, conn, isPop && blinkOn, eyes);
+        if (dead) {
+          const h = hash(i * 7 + 3);
+          const dir = h % 2 ? 1 : -1;
+          const drop = since * since * 0.07 * (1 + (h % 5) * 0.1) - Math.min(since, 8) * 0.6;
+          g.save();
+          g.translate(px + 8 + dir * since * (0.2 + (h % 3) * 0.15), py + 8 + Math.max(-4, drop));
+          g.rotate(dir * since * 0.04 * (1 + (h % 4) * 0.3));
+          g.drawImage(sprite, -8, -8);
+          g.restore();
+        } else {
+          g.drawImage(sprite, Math.round(px), Math.round(py));
+        }
       }
     }
 
     for (const f of sim.fallers) {
       if (f.landed && f.squash <= 0) continue;
       const px = fx + f.x * CELL_PX;
-      const py = fy + f.pos / 0x10000 - VISIBLE_TOP * CELL_PX + deadOffset;
+      const py = fy + f.pos / 0x10000 - VISIBLE_TOP * CELL_PX;
       if (f.landed) {
-        const k = [0.72, 0.84, 1, 0.9, 1, 0.94, 1][Math.floor((14 - f.squash) / 2)] ?? 1;
+        const k = [0.7, 0.82, 1.04, 0.92, 1.02, 0.97, 1][Math.floor((14 - f.squash) / 2)] ?? 1;
         const h = Math.round(16 * k);
         const w = Math.round(16 * (2 - k));
-        g.drawImage(beanSprite(f.cell), px - Math.floor((w - 16) / 2), Math.round(py) + 16 - h, w, h);
+        g.drawImage(beanSprite(f.cell, 0, false, k < 0.85 ? 'closed' : 'open'), px - Math.floor((w - 16) / 2), Math.round(py) + 16 - h, w, h);
       } else {
-        g.drawImage(beanSprite(f.cell), px, Math.round(py));
+        g.drawImage(beanSprite(f.cell, 0, false, f.cell === GARBAGE ? 'open' : 'wide'), px, Math.round(py));
       }
     }
 
@@ -409,20 +345,41 @@ export class Renderer {
       const cdy = t > 0 ? -Math.cos(ang) * CELL_PX : ROT_DY[p.rot] * CELL_PX;
       const pivotFlash = frame % 32 < 4;
       const squash = p.bounce < 4 ? [0.8, 0.88, 0.95, 1][p.bounce] : 1;
-      this.bean(p.child, baseX + cdx, baseY + cdy, squash, false);
-      this.bean(p.pivot, baseX, baseY, squash, pivotFlash);
+      const eyes: EyeStyle = danger ? 'up' : 'open';
+      this.bean(p.child, baseX + cdx, baseY + cdy, squash, false, eyes);
+      this.bean(p.pivot, baseX, baseY, squash, pivotFlash, eyes);
     }
 
+    // A soft reflection across the glass.
+    g.fillStyle = 'rgba(255,255,255,0.035)';
+    g.beginPath();
+    g.moveTo(fx + 8, fy);
+    g.lineTo(fx + 30, fy);
+    g.lineTo(fx - 10, fy + FIELD_H);
+    g.lineTo(fx - 32, fy + FIELD_H);
+    g.fill();
+    if (dead) {
+      g.fillStyle = `rgba(0,0,10,${Math.min(0.55, since / 80)})`;
+      g.fillRect(fx, fy, FIELD_W, FIELD_H);
+    }
     g.restore();
-    this.queue(v, fx);
+
+    if (danger) {
+      const a = 0.35 + Math.sin(frame * 0.2) * 0.25;
+      g.strokeStyle = `rgba(255,50,70,${a})`;
+      g.lineWidth = 2;
+      g.strokeRect(fx - 2, fy - 2, FIELD_W + 4, FIELD_H + 4);
+    }
+    this.queue(v, index, fx);
   }
 
-  private bean(color: number, x: number, y: number, squash: number, flash: boolean): void {
-    const s = beanSprite(color, 0, flash);
+  private bean(color: number, x: number, y: number, squash: number, flash: boolean, eyes: EyeStyle): void {
+    const s = beanSprite(color, 0, flash, eyes);
     if (squash === 1) this.g.drawImage(s, Math.round(x), Math.round(y));
     else {
       const h = Math.round(16 * squash);
-      this.g.drawImage(s, Math.round(x), Math.round(y) + 16 - h, 16, h);
+      const w = Math.round(16 * (2 - squash));
+      this.g.drawImage(s, Math.round(x) - Math.floor((w - 16) / 2), Math.round(y) + 16 - h, w, h);
     }
   }
 
@@ -441,7 +398,7 @@ export class Renderer {
   }
 
   /** Refugee queue: a big bean per 6, a small one per 1, a crowned one per 30. */
-  private queue(v: BoardView, fx: number): void {
+  private queue(v: BoardView, index: number, fx: number): void {
     let n = v.pending;
     if (n <= 0) return;
     const g = this.g;
@@ -458,36 +415,58 @@ export class Renderer {
       icons.push(1);
       n--;
     }
-    const sprite = beanSprite(GARBAGE);
+    const bump = this.effects.queueBump[index] ?? 0;
+    const sprite = beanSprite(GARBAGE, 0, bump > 8, 'wide');
     let x = fx + 2;
     const y = v.fy - 16;
-    for (const k of icons) {
+    icons.forEach((k, i) => {
+      const hop = bump > 0 ? Math.round(Math.sin((bump / 12) * Math.PI + i * 0.5) * 3) : 0;
       if (k === 1) {
-        g.drawImage(sprite, x, y + 6, 10, 10);
+        g.drawImage(sprite, x, y + 6 - hop, 10, 10);
         x += 11;
       } else {
-        g.drawImage(sprite, x, y, 16, 16);
+        g.drawImage(sprite, x, y - hop, 16, 16);
         if (k === 30) {
-          rect(g, x + 5, y - 1, 6, 3, '#ffd040');
-          rect(g, x + 4, y - 3, 2, 2, '#ffd040');
-          rect(g, x + 7, y - 3, 2, 2, '#ffd040');
-          rect(g, x + 10, y - 3, 2, 2, '#ffd040');
+          rect(g, x + 5, y - 1 - hop, 6, 3, '#ffd040');
+          rect(g, x + 4, y - 3 - hop, 2, 2, '#ffd040');
+          rect(g, x + 7, y - 3 - hop, 2, 2, '#ffd040');
+          rect(g, x + 10, y - 3 - hop, 2, 2, '#ffd040');
         }
         x += 16;
       }
-    }
+    });
   }
 
   private banner(scene: Scene, b: Banner): void {
     let cx = W / 2;
-    let cy = H / 2 - 12;
+    let cy = H / 2 - 14;
     if (b.board !== undefined && scene.boards[b.board]) {
       const v = scene.boards[b.board];
       cx = v.fx + FIELD_W / 2;
-      cy = v.fy + FIELD_H / 2 - 12;
+      cy = v.fy + FIELD_H / 2 - 14;
     }
-    const color = b.color ?? '#ffe040';
-    drawText(this.g, b.text, cx, cy, { color, outline: '#000', align: 'center', scale: 2 });
-    if (b.sub) drawText(this.g, b.sub, cx, cy + 22, { color: '#ffffff', outline: '#000', align: 'center' });
+    const age = b.age ?? 99;
+    const [top, bottom] = TONES[b.tone ?? 'gold'];
+    const img = fancyText(b.text, 2, top, bottom);
+    let scale = 1;
+    let dy = 0;
+    let alpha = 1;
+    if (b.style === 'drop') {
+      const t = Math.min(1, age / 12);
+      dy = -50 * (1 - t) ** 2 + (t === 1 ? Math.round(Math.sin(age * 0.15) * 1.5) : 0);
+    } else if (b.style === 'zoom') {
+      scale = Math.max(1, 2.6 - age * 0.2);
+      alpha = age > 18 ? Math.max(0, 1 - (age - 18) / 10) : 1;
+    } else if (b.style === 'bounce') {
+      scale = age < 10 ? 1.7 - (age / 10) * 0.7 + Math.sin((age / 10) * Math.PI) * 0.15 : 1;
+      dy = age >= 10 ? Math.round(Math.sin(age * 0.12) * 2) : 0;
+    }
+    const w = Math.round(img.width * scale);
+    const h = Math.round(img.height * scale);
+    const g = this.g;
+    g.globalAlpha = alpha;
+    g.drawImage(img, Math.round(cx - w / 2), Math.round(cy - h / 2 + dy), w, h);
+    g.globalAlpha = 1;
+    if (b.sub && age > 6) drawText(g, b.sub, cx, cy + h / 2 + 6 + dy, { color: '#ffffff', outline: '#000', align: 'center' });
   }
 }

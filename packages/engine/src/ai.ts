@@ -185,7 +185,7 @@ export class AiController {
       this.target = null;
       return 0;
     }
-    if (this.pieceKey !== sim.piecesPlaced) {
+    if (this.pieceKey !== sim.piecesPlaced || !this.target) {
       this.pieceKey = sim.piecesPlaced;
       const upcoming = sim.upcoming(1);
       this.target = choosePlacement(

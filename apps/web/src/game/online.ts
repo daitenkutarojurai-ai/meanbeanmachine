@@ -10,12 +10,11 @@ import {
 import type { App, Session } from '../app.ts';
 import { audio } from '../audio.ts';
 import { SOLO_KEYS } from '../input.ts';
-import { portrait } from '../render/portraits.ts';
 import type { Banner, BoardView, Panel } from '../render/renderer.ts';
 import { net } from '../net/client.ts';
 import { progress, saveProgress, saveSettings, settings } from '../storage.ts';
-import { el, pad, showLayer, showMenu } from '../ui.ts';
-import { moodOf, playEventSounds } from './battle.ts';
+import { el, showLayer, showMenu } from '../ui.ts';
+import { moodOf, playEventSounds, trackFor } from './battle.ts';
 import { MenuBackdrop } from './backdrop.ts';
 import { CAST } from './characters.ts';
 
@@ -29,6 +28,7 @@ interface Lobby {
 
 /** A networked round: own board simulated locally, opponent's board replayed from its inputs. */
 class OnlineBattle implements Session {
+  readonly kind = 'battle';
   private local: PlayerSim;
   private remote: InputReplay;
   private recorder = new InputRecorder();
@@ -78,10 +78,19 @@ class OnlineBattle implements Session {
     ];
     this.startAt = performance.now() + msg.countdownMs;
     app.renderer.effects.reset();
-    audio.music('battle');
+    app.renderer.resetHud();
+    audio.music(this.track());
     audio.sfx('ready');
     this.off = net.on((m) => this.onMessage(m));
     this.pingTimer = window.setInterval(() => net.send({ t: 'ping', at: performance.now() }), 2000);
+  }
+
+  private lastCount = 0;
+
+  /** Battle theme picked from the room code so both players hear the same one. */
+  private track(): 'battle' | 'battle2' | 'battle3' {
+    const h = this.lobby.code.charCodeAt(2) + this.lobby.code.charCodeAt(3);
+    return trackFor(h % 12, 13) as 'battle' | 'battle2' | 'battle3';
   }
 
   private onMessage(m: ServerMessage): void {
@@ -108,7 +117,9 @@ class OnlineBattle implements Session {
           const v = this.views[1 - this.winner];
           if (v.deadAt === undefined) v.deadAt = this.renderFrame;
         }
-        audio.sfx(this.winner === 0 ? 'win' : 'lose');
+        audio.jingle(this.winner === 0 ? 'win' : 'lose');
+        this.views.forEach((v, i) => (v.mood = this.winner < 0 ? 'lose' : i === this.winner ? 'win' : 'lose'));
+        if (this.winner >= 0) this.app.renderer.effects.confetti(this.views[this.winner]);
         break;
       }
       case 'matchOver': {
@@ -155,6 +166,11 @@ class OnlineBattle implements Session {
   }
 
   update(now: number): void {
+    if (this.state === 'intro') {
+      const left = Math.ceil((this.startAt - now) / 1000);
+      if (left !== this.lastCount && left > 0) audio.sfx('tick');
+      this.lastCount = left;
+    }
     if (this.state === 'intro' && now >= this.startAt) {
       this.state = 'play';
       audio.sfx('go');
@@ -171,7 +187,7 @@ class OnlineBattle implements Session {
     }
     const evs = this.remote.advance();
     this.app.renderer.effects.handle(1, evs, this.views);
-    playEventSounds(evs, false);
+    playEventSounds(evs, false, 'rival');
     for (const e of evs) if (e.type === 'chainEnd' && e.chain >= 3) this.happy[1] = 90;
   }
 
@@ -185,7 +201,7 @@ class OnlineBattle implements Session {
     this.recorder.record(input);
     const evs = this.local.events.splice(0);
     this.app.renderer.effects.handle(0, evs, this.views);
-    playEventSounds(evs, true);
+    playEventSounds(evs, true, 'hero');
     for (const e of evs) {
       if (e.type === 'chainEnd') {
         this.sent += e.garbage;
@@ -204,24 +220,26 @@ class OnlineBattle implements Session {
     this.views[0].pending = this.local.pending + this.incoming.reduce((a, b) => a + b, 0);
     this.views[1].pending = this.remote.sim.pending + Math.max(0, this.sent - this.remote.ackedTotal);
     if (!this.remote.sim.alive && this.views[1].deadAt === undefined) this.views[1].deadAt = this.renderFrame;
-    audio.music(countBeans(this.local.field) >= 54 ? 'danger' : 'battle');
+    if (this.state === 'play') audio.music(countBeans(this.local.field) >= 54 ? 'danger' : this.track());
 
     const me = this.lobby.you;
     const names = [this.lobby.names[me] ?? 'YOU', this.lobby.names[1 - me] ?? 'RIVAL'];
     const panels: Panel[] = [0, 1].map((i) => {
       const step = fx.stepText[i];
       const sim = i === 0 ? this.local : this.remote.sim;
-      return { label: names[i].slice(0, 10), value: step && step.life > 0 ? step.text : pad(sim.score), color: i === 0 ? '#80c0ff' : '#ff9090' };
+      return { label: names[i].slice(0, 10), value: step && step.life > 0 ? step.text : undefined, score: sim.score, color: i === 0 ? '#80c0ff' : '#ff9090' };
     });
     const banners: Banner[] = [];
     if (this.state === 'intro') {
       const left = Math.ceil((this.startAt - performance.now()) / 1000);
-      banners.push({ text: left > 0 ? String(left) : 'GO!', sub: this.msg.round > 0 ? `ROUND ${this.msg.round + 1}` : 'READY' });
+      const msLeft = this.startAt - performance.now();
+      const age = Math.floor((1000 - (((msLeft % 1000) + 1000) % 1000)) / 16.7);
+      banners.push(left > 0 ? { text: String(left), style: 'bounce', age, sub: this.msg.round > 0 ? `ROUND ${this.msg.round + 1}` : 'READY' } : { text: 'GO!', tone: 'green', style: 'zoom', age: 0 });
     } else if (this.state === 'roundEnd' || this.state === 'matchEnd') {
       if (this.winner < 0) banners.push({ text: 'DRAW' });
       else {
-        banners.push({ text: this.winner === 0 ? 'WIN!' : 'LOSE', board: 0, color: this.winner === 0 ? '#60ff80' : '#ff6070' });
-        banners.push({ text: this.winner === 1 ? 'WIN!' : 'LOSE', board: 1, color: this.winner === 1 ? '#60ff80' : '#ff6070' });
+        banners.push({ text: this.winner === 0 ? 'WIN!' : 'LOSE', board: 0, style: 'bounce', age: this.bannerTimer, tone: this.winner === 0 ? 'green' : 'red' });
+        banners.push({ text: this.winner === 1 ? 'WIN!' : 'LOSE', board: 1, style: 'bounce', age: this.bannerTimer, tone: this.winner === 1 ? 'green' : 'red' });
       }
     }
     const rivalFace = CAST[(this.lobby.code.charCodeAt(0) + this.lobby.code.charCodeAt(1)) % CAST.length];
@@ -229,8 +247,8 @@ class OnlineBattle implements Session {
       layout: 'versus',
       boards: this.views,
       frame: this.renderFrame,
-      bg: rivalFace.stage,
-      portrait: portrait(rivalFace, moodOf(this.remote.sim, this.local, this.happy[1])),
+      scene: rivalFace.scene,
+      face: { character: rivalFace, expr: moodOf(this.remote.sim, this.local, this.happy[1]), name: names[1] },
       panels,
       info: [`WINS ${this.wins[me]}-${this.wins[1 - me]}`, `FIRST TO ${Math.floor(this.games / 2) + 1}`, net.reconnecting ? 'RECONNECTING...' : this.ping ? `PING ${this.ping}MS` : ''],
       banners,

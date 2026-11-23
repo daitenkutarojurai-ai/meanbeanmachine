@@ -48,6 +48,17 @@ body {
   box-shadow: 0 0 0 2px #000, 0 0 40px rgba(120, 80, 255, 0.25);
 }
 
+#stage.crt::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    repeating-linear-gradient(to bottom, rgba(0, 0, 0, 0.22) 0, rgba(0, 0, 0, 0.22) calc(var(--u) * 0.5), transparent calc(var(--u) * 0.5), transparent var(--u)),
+    radial-gradient(ellipse at center, transparent 60%, rgba(0, 0, 0, 0.45) 100%);
+  mix-blend-mode: multiply;
+}
+
 #screen {
   width: 100%;
   height: 100%;

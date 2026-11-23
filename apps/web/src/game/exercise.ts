@@ -2,7 +2,6 @@ import { PlayerSim, countBeans, exerciseConfig, randomSeed } from '@mbm/engine';
 import { type App, FixedStepper, type Session } from '../app.ts';
 import { audio } from '../audio.ts';
 import { SOLO_KEYS } from '../input.ts';
-import { portrait } from '../render/portraits.ts';
 import type { Banner, BoardView } from '../render/renderer.ts';
 import { progress, saveProgress } from '../storage.ts';
 import { pad, showMenu } from '../ui.ts';
@@ -13,6 +12,7 @@ const LEVEL_NAMES = ['EASY', 'NORMAL', 'HARD'];
 
 /** Endless solo mode: no opponent, the level climbs every 32 beans cleared. */
 export class ExerciseSession implements Session {
+  readonly kind = 'battle';
   private sim: PlayerSim;
   private view: BoardView;
   private frame = 0;
@@ -34,6 +34,7 @@ export class ExerciseSession implements Session {
     this.sim = new PlayerSim(exerciseConfig(randomSeed(), choice * 2));
     this.view = { sim: this.sim, fx: 112, fy: 16, pending: 0, shake: 0 };
     app.renderer.effects.reset();
+    app.renderer.resetHud();
     audio.music('battle');
     this.offMenu = app.input.onMenu((a) => {
       if ((a === 'pause' || a === 'back') && this.state === 'play' && !this.paused) this.pause();
@@ -83,7 +84,7 @@ export class ExerciseSession implements Session {
     this.sim.step(this.app.input.mask(SOLO_KEYS, 0, this.app.touchEnabled));
     const events = this.sim.events.splice(0);
     fx.handle(0, events, [this.view]);
-    playEventSounds(events, true);
+    playEventSounds(events, true, 'hero');
     audio.music(countBeans(this.sim.field) >= 54 ? 'danger' : 'battle');
     if (!this.sim.alive) {
       this.state = 'over';
@@ -103,17 +104,18 @@ export class ExerciseSession implements Session {
     const s = this.sim;
     const step = this.app.renderer.effects.stepText[0];
     const banners: Banner[] = [];
-    if (this.state === 'intro') banners.push({ text: this.timer < 50 ? 'READY' : 'GO!', board: 0 });
+    if (this.state === 'intro')
+      banners.push(this.timer < 50 ? { text: 'READY', board: 0, style: 'drop', age: this.timer } : { text: 'GO!', board: 0, style: 'zoom', tone: 'green', age: this.timer - 50 });
     if (this.state === 'over')
-      banners.push({ text: 'GAME OVER', board: 0, color: '#ff6070', sub: this.newBest ? 'NEW RECORD!' : 'PRESS START' });
+      banners.push({ text: 'GAME OVER', board: 0, tone: 'red', style: 'bounce', age: this.timer, sub: this.newBest ? 'NEW RECORD!' : 'PRESS START' });
     this.app.renderer.draw({
       layout: 'solo',
       boards: [this.view],
       frame: this.frame,
-      bg: HERO.stage,
-      portraitLeft: portrait(HERO, !s.alive ? 'ko' : s.chain >= 2 ? 'happy' : 'idle'),
+      scene: 'meadow',
+      faceLeft: { character: HERO, expr: !s.alive ? 'ko' : s.chain >= 2 ? 'happy' : 'idle', name: 'SPROUT' },
       panels: [
-        { label: 'SCORE', value: step && step.life > 0 ? step.text : pad(s.score) },
+        { label: 'SCORE', value: step && step.life > 0 ? step.text : undefined, score: s.score },
         { label: 'LEVEL', value: String(s.exerciseLevel + 1) },
         { label: 'BEANS', value: String(s.totalCleared) },
         { label: 'BEST CHAIN', value: String(s.maxChain) },

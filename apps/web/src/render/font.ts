@@ -87,6 +87,39 @@ export interface TextOptions {
 
 export const CHAR_W = 6;
 
+const fancyCache = new Map<string, HTMLCanvasElement>();
+
+/** Big banner text: vertical gradient fill, black outline and drop shadow, cached. */
+export function fancyText(text: string, scale: number, top: string, bottom: string): HTMLCanvasElement {
+  const s = text.toUpperCase();
+  const key = `${s}|${scale}|${top}|${bottom}`;
+  let out = fancyCache.get(key);
+  if (out) return out;
+  const w = textWidth(s, scale) + 6;
+  const h = 7 * scale + 6;
+  const fill = makeCanvas(w, h);
+  const fg = ctx2d(fill);
+  drawText(fg, s, 2, 2, { color: '#ffffff', scale, shadow: null });
+  fg.globalCompositeOperation = 'source-in';
+  const grad = fg.createLinearGradient(0, 2, 0, 2 + 7 * scale);
+  grad.addColorStop(0, top);
+  grad.addColorStop(0.55, top);
+  grad.addColorStop(0.56, bottom);
+  grad.addColorStop(1, bottom);
+  fg.fillStyle = grad;
+  fg.fillRect(0, 0, w, h);
+  out = makeCanvas(w, h);
+  const og = ctx2d(out);
+  drawText(og, s, 2 + Math.max(1, scale / 2), 2 + Math.max(1, scale / 2), { color: '#000000', scale, shadow: null });
+  for (const [dx, dy] of [[-1, 0], [1, 0], [0, -1], [0, 1], [-1, -1], [1, 1], [-1, 1], [1, -1]]) {
+    drawText(og, s, 2 + dx, 2 + dy, { color: '#000000', scale, shadow: null });
+  }
+  og.drawImage(fill, 0, 0);
+  if (fancyCache.size > 200) fancyCache.clear();
+  fancyCache.set(key, out);
+  return out;
+}
+
 export function textWidth(text: string, scale = 1): number {
   return text.length * CHAR_W * scale - scale;
 }

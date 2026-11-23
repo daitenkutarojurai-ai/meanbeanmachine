@@ -6,7 +6,7 @@ import { portrait } from '../render/portraits.ts';
 import { progress, saveSettings, settings } from '../storage.ts';
 import { el, showLayer, showMenu } from '../ui.ts';
 import { MenuBackdrop } from './backdrop.ts';
-import { BattleSession } from './battle.ts';
+import { BattleSession, trackFor } from './battle.ts';
 import { CAST, HERO } from './characters.ts';
 import { ExerciseSession } from './exercise.ts';
 import { OnlineFlow } from './online.ts';
@@ -44,8 +44,8 @@ export class Title {
         kind: 'versus',
         levels: [2, 2],
         games: 1,
-        music: 'battle',
-        bg: b.stage,
+        music: trackFor(CAST.indexOf(b), CAST.length),
+        scene: b.scene,
         portraitOf: 1,
         info: 'DEMO',
         demo: true,
@@ -141,7 +141,7 @@ export class Title {
                 levels: [levels[0], levels[1]],
                 games: settings.games,
                 music: 'battle',
-                bg: ['#203050', '#080c18'],
+                scene: 'meadow',
                 portraitOf: null,
                 players: [
                   { label: '1P', character: HERO, human: true, binding: P1_KEYS, pad: 0 },
@@ -196,8 +196,8 @@ export class Title {
           kind: 'versus',
           levels: [settings.levels[0], settings.levels[0]],
           games: settings.games,
-          music: focus === CAST.length - 1 ? 'boss' : 'battle',
-          bg: foe.stage,
+          music: trackFor(focus, CAST.length),
+          scene: foe.scene,
           portraitOf: 1,
           players: [
             { label: 'YOU', character: HERO, human: true, binding: SOLO_KEYS, pad: 0, touch: this.app.touchEnabled },
@@ -316,6 +316,15 @@ export class Title {
             settings.touch = touchModes[(touchModes.indexOf(settings.touch) + d + 3) % 3];
             saveSettings();
             this.app.updateTouch();
+          },
+        },
+        {
+          label: 'SCANLINES',
+          value: () => (settings.crt ? 'ON' : 'OFF'),
+          change: () => {
+            settings.crt = !settings.crt;
+            saveSettings();
+            this.app.updateCrt();
           },
         },
         {

@@ -1,4 +1,5 @@
 import type { AiProfile } from '@mbm/engine';
+import type { SceneKind } from '../render/scenes.ts';
 
 export type Head = 'round' | 'square' | 'dome' | 'tall' | 'wide' | 'kettle' | 'helmet' | 'cat' | 'dragon' | 'mouse' | 'bean' | 'boss';
 export type Eyes = 'dots' | 'visor' | 'mono' | 'big' | 'slit' | 'goggles';
@@ -29,8 +30,10 @@ export interface Character {
   defeat: string;
   portrait: Portrait;
   ai: AiProfile;
-  /** Background tint for the stage. */
+  /** Background tint for story screens. */
   stage: [string, string];
+  /** Animated backdrop for their stage. */
+  scene: SceneKind;
 }
 
 const ai = (
@@ -61,6 +64,7 @@ export const HERO: Character = {
   portrait: { head: 'bean', eyes: 'big', extra: 'sprout', mouth: 'smile', body: '#4cc35a', light: '#a6f08c', dark: '#1f6b34', eye: '#1b1b1b', bg: '#1b3b5a' },
   ai: ai(20, 6, 3, 0.1),
   stage: ['#1b3b5a', '#0c1b2e'],
+  scene: 'meadow',
 };
 
 /** Scenario order: thirteen of Professor Grimgear's machines, weakest first. */
@@ -75,6 +79,7 @@ export const CAST: Character[] = [
     portrait: { head: 'square', eyes: 'dots', extra: 'antenna', mouth: 'grill', body: '#b0703a', light: '#e0a060', dark: '#5a3418', eye: '#ffe060', bg: '#4a2a1a' },
     ai: ai(44, 11, 1, 0.35),
     stage: ['#5a3a22', '#26170c'],
+    scene: 'junkyard',
   },
   {
     id: 'pip',
@@ -86,6 +91,7 @@ export const CAST: Character[] = [
     portrait: { head: 'mouse', eyes: 'big', extra: 'ears', mouth: 'teeth', body: '#9aa0b0', light: '#d4d8e4', dark: '#4a4e5c', eye: '#202020', bg: '#3a3050' },
     ai: ai(38, 10, 1, 0.28),
     stage: ['#3a3050', '#18142a'],
+    scene: 'meadow',
   },
   {
     id: 'kettle',
@@ -97,6 +103,7 @@ export const CAST: Character[] = [
     portrait: { head: 'kettle', eyes: 'goggles', extra: 'whistle', mouth: 'moustache', body: '#c8c8d0', light: '#f4f4ff', dark: '#5a5a68', eye: '#60c0ff', bg: '#2a4048' },
     ai: ai(32, 9, 2, 0.24),
     stage: ['#2a4048', '#101c20'],
+    scene: 'steam',
   },
   {
     id: 'mecha',
@@ -108,6 +115,7 @@ export const CAST: Character[] = [
     portrait: { head: 'dome', eyes: 'visor', extra: 'bow', mouth: 'smile', body: '#e050a0', light: '#ff9ad0', dark: '#701848', eye: '#60fff0', bg: '#4a1a40' },
     ai: ai(28, 8, 2, 0.2),
     stage: ['#4a1a40', '#20081a'],
+    scene: 'disco',
   },
   {
     id: 'cogbeard',
@@ -119,6 +127,7 @@ export const CAST: Character[] = [
     portrait: { head: 'round', eyes: 'mono', extra: 'pirate', mouth: 'teeth', body: '#5a7ab0', light: '#90b0e0', dark: '#203458', eye: '#ff4040', bg: '#1a2a4a' },
     ai: ai(24, 7, 2, 0.16),
     stage: ['#1a2a4a', '#0a1020'],
+    scene: 'sea',
   },
   {
     id: 'vroomba',
@@ -130,6 +139,7 @@ export const CAST: Character[] = [
     portrait: { head: 'wide', eyes: 'visor', extra: 'none', mouth: 'grill', body: '#40404a', light: '#7a7a88', dark: '#1a1a20', eye: '#40ff60', bg: '#20282a' },
     ai: ai(20, 6, 3, 0.13),
     stage: ['#20282a', '#0a0e10'],
+    scene: 'city',
   },
   {
     id: 'kaboomer',
@@ -141,6 +151,7 @@ export const CAST: Character[] = [
     portrait: { head: 'round', eyes: 'slit', extra: 'fuse', mouth: 'teeth', body: '#30303a', light: '#606070', dark: '#101014', eye: '#ff8020', bg: '#4a2410' },
     ai: ai(18, 6, 3, 0.11),
     stage: ['#4a2410', '#200e04'],
+    scene: 'mine',
   },
   {
     id: 'drillbert',
@@ -152,6 +163,7 @@ export const CAST: Character[] = [
     portrait: { head: 'tall', eyes: 'goggles', extra: 'drill', mouth: 'flat', body: '#d0a020', light: '#ffe070', dark: '#6a4a08', eye: '#ff6040', bg: '#3a2a10' },
     ai: ai(16, 5, 3, 0.09),
     stage: ['#3a2a10', '#181004'],
+    scene: 'mine',
   },
   {
     id: 'spikester',
@@ -163,6 +175,7 @@ export const CAST: Character[] = [
     portrait: { head: 'round', eyes: 'slit', extra: 'spikes', mouth: 'fangs', body: '#7a40c0', light: '#b080ff', dark: '#341860', eye: '#ffff40', bg: '#28104a' },
     ai: ai(14, 5, 4, 0.08),
     stage: ['#28104a', '#10061e'],
+    scene: 'castle',
   },
   {
     id: 'circuit',
@@ -174,6 +187,7 @@ export const CAST: Character[] = [
     portrait: { head: 'helmet', eyes: 'visor', extra: 'plume', mouth: 'grill', body: '#a0a8b8', light: '#e0e8f8', dark: '#40485a', eye: '#40c0ff', bg: '#202a40' },
     ai: ai(12, 4, 4, 0.06),
     stage: ['#202a40', '#0a0e1a'],
+    scene: 'castle',
   },
   {
     id: 'wyrm',
@@ -185,6 +199,7 @@ export const CAST: Character[] = [
     portrait: { head: 'dragon', eyes: 'slit', extra: 'horns', mouth: 'fangs', body: '#c03028', light: '#ff7050', dark: '#581010', eye: '#ffe040', bg: '#401010' },
     ai: ai(10, 4, 5, 0.05),
     stage: ['#401010', '#1a0404'],
+    scene: 'lava',
   },
   {
     id: 'shade',
@@ -196,6 +211,7 @@ export const CAST: Character[] = [
     portrait: { head: 'cat', eyes: 'slit', extra: 'ears', mouth: 'flat', body: '#28283a', light: '#505070', dark: '#0c0c14', eye: '#80ff60', bg: '#14141e' },
     ai: ai(7, 3, 5, 0.03),
     stage: ['#14141e', '#060608'],
+    scene: 'rooftop',
   },
   {
     id: 'grimgear',
@@ -207,6 +223,7 @@ export const CAST: Character[] = [
     portrait: { head: 'boss', eyes: 'goggles', extra: 'none', mouth: 'moustache', body: '#e8c8a8', light: '#fff0e0', dark: '#7a5038', eye: '#ff3030', bg: '#30103a' },
     ai: ai(5, 3, 6, 0.02, { noise: 4, ambition: 1.8 }),
     stage: ['#30103a', '#10041a'],
+    scene: 'lab',
   },
 ];
 
