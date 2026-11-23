@@ -2,6 +2,8 @@
 
 A falling-bean puzzle battler that plays by the **exact rules of *Dr. Robotnik's Mean Bean Machine*** (Mega Drive, 1993) with an all-new cast, playable in the browser, against the computer, on one keyboard, or **online**.
 
+**Play:** https://bean-machine.important-leech.workers.dev (full game + online) · https://daitenkutarojurai-ai.github.io/meanbeanmachine/ (mirror)
+
 Professor Grimgear has built a Bean Machine to turn the beans of Beanbury into robots. Sprout, a small green bean, fights through 12 of his machines and then the Professor himself.
 
 ## What's in it
@@ -65,11 +67,18 @@ npm run typecheck
 
 ## Deploy
 
-The server is one Node process that serves the built client and the WebSocket endpoint, so any host with WebSocket support works (Render, Fly.io, Railway, a VPS). A `Dockerfile` and a `render.yaml` blueprint are included.
+The client is static; the multiplayer server is the same code packaged three ways:
 
-- **Render**: New → Blueprint → pick this repo. Free tier works (it sleeps when idle).
-- **Docker**: `docker build -t bean-machine . && docker run -p 8787:8787 bean-machine`
-- **Static client elsewhere** (e.g. Vercel, GitHub Pages): build with `VITE_SERVER_URL=wss://your-server/ws npm run build`, and set `ALLOWED_ORIGINS=https://your-site` on the server. You can also point any copy of the client at a server with `?server=wss://host/ws`.
+| Host | Command / setup | Notes |
+|---|---|---|
+| **Cloudflare Workers** (current live site) | `npm run build && npx wrangler deploy` | `wrangler.jsonc`: static assets + one Durable Object running the lobby. No connection time limit; free tier is plenty. |
+| **Any Node host** (Render, Fly.io, VPS, Docker) | `npm run build && npm start`, or the `Dockerfile` / `render.yaml` | One process serves the client and `/ws`. |
+| **Vercel** | import the repo; `vercel.json` is included | `api/ws.js` (bundled by `npm run bundle:api`) runs the server as a Function. Vercel caps connections at 5 min and may split players across instances, so the session-resume protocol matters there and a shared store would be needed at scale. |
+| **GitHub Pages** (mirror) | `.github/workflows/pages.yml` on every push | Static only; set the repository variable `SERVER_URL` (e.g. `wss://host/ws`) to use a multiplayer server. |
+
+A copy of the client can also be pointed at any server with `?server=wss://host/ws`. If you host the client separately from the server, set `ALLOWED_ORIGINS` on a Node server to your site's origin.
+
+**Dropped connections:** the protocol has sessions. The server numbers its messages and keeps a player's seat for 15 s; the client reconnects on its own, receives what it missed and resends its inputs, so a network blip doesn't end the match.
 
 ## Roadmap
 

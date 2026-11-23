@@ -4,7 +4,7 @@ import { extname, join, normalize, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { WebSocketServer } from 'ws';
 import { Lobby } from './rooms.ts';
-import { INSTANCE, Sessions } from './sessions.ts';
+import { Sessions, instanceId } from './sessions.ts';
 import { serveWebSockets } from './wire.ts';
 
 const PORT = Number(process.env.PORT ?? 8787);
@@ -31,7 +31,7 @@ const http = createServer((req, res) => {
   const url = new URL(req.url ?? '/', 'http://localhost');
   if (url.pathname === '/health') {
     res.writeHead(200, { 'content-type': 'application/json' });
-    res.end(JSON.stringify({ ok: true, instance: INSTANCE, rooms: lobby.rooms.size, sessions: sessions.size }));
+    res.end(JSON.stringify({ ok: true, instance: instanceId(), rooms: lobby.rooms.size, sessions: sessions.size }));
     return;
   }
   if (!existsSync(STATIC_DIR)) {

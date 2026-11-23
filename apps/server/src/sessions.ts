@@ -1,4 +1,3 @@
-import { randomUUID } from 'node:crypto';
 import { type ClientMessage, PROTOCOL_VERSION, RESUME_GRACE_MS, type ServerMessage } from '@mbm/engine';
 import { type Lobby, type Peer, sanitizeName } from './rooms.ts';
 
@@ -13,8 +12,12 @@ const OPEN = 1;
 /** About three minutes of a busy match; a resume only needs the last few seconds. */
 const LOG_LIMIT = 4000;
 
-/** Identifies this server process, so tests can tell which instance a client reached. */
-export const INSTANCE = randomUUID().slice(0, 8);
+let instance = '';
+/** Identifies this server process, so tests can tell which instance a client reached. Made lazily: Workers forbid randomness at load time. */
+export function instanceId(): string {
+  if (!instance) instance = crypto.randomUUID().slice(0, 8);
+  return instance;
+}
 
 interface Session {
   peer: Peer;
@@ -82,10 +85,10 @@ export class Sessions {
         reply({ t: 'error', message: 'Please refresh: the game was updated.' });
         return null;
       }
-      const s: Session = { peer: null as unknown as Peer, token: randomUUID(), seq: 0, log: [], socket, grace: null };
-      s.peer = { id: randomUUID(), name: sanitizeName(msg.name), level: 1, room: null, send: (m) => this.push(s, m) };
+      const s: Session = { peer: null as unknown as Peer, token: crypto.randomUUID(), seq: 0, log: [], socket, grace: null };
+      s.peer = { id: crypto.randomUUID(), name: sanitizeName(msg.name), level: 1, room: null, send: (m) => this.push(s, m) };
       this.byId.set(s.peer.id, s);
-      reply({ t: 'welcome', id: s.peer.id, token: s.token, instance: INSTANCE });
+      reply({ t: 'welcome', id: s.peer.id, token: s.token, instance: instanceId() });
       return s;
     }
     if (msg.t === 'resume') {

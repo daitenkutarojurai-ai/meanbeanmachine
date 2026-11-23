@@ -5008,10 +5008,13 @@ function sanitizeName(raw) {
 var clampLevel = (n) => Math.min(4, Math.max(0, Math.floor(Number(n)) || 0));
 
 // apps/server/src/sessions.ts
-import { randomUUID } from "node:crypto";
 var OPEN = 1;
 var LOG_LIMIT = 4e3;
-var INSTANCE = randomUUID().slice(0, 8);
+var instance = "";
+function instanceId() {
+  if (!instance) instance = crypto.randomUUID().slice(0, 8);
+  return instance;
+}
 var Sessions = class {
   byId = /* @__PURE__ */ new Map();
   lobby;
@@ -5060,10 +5063,10 @@ var Sessions = class {
         reply({ t: "error", message: "Please refresh: the game was updated." });
         return null;
       }
-      const s = { peer: null, token: randomUUID(), seq: 0, log: [], socket, grace: null };
-      s.peer = { id: randomUUID(), name: sanitizeName(msg.name), level: 1, room: null, send: (m) => this.push(s, m) };
+      const s = { peer: null, token: crypto.randomUUID(), seq: 0, log: [], socket, grace: null };
+      s.peer = { id: crypto.randomUUID(), name: sanitizeName(msg.name), level: 1, room: null, send: (m) => this.push(s, m) };
       this.byId.set(s.peer.id, s);
-      reply({ t: "welcome", id: s.peer.id, token: s.token, instance: INSTANCE });
+      reply({ t: "welcome", id: s.peer.id, token: s.token, instance: instanceId() });
       return s;
     }
     if (msg.t === "resume") {
@@ -5125,7 +5128,7 @@ var lobby = new Lobby();
 var sessions = new Sessions(lobby);
 var server = createServer((_req, res) => {
   res.writeHead(200, { "content-type": "application/json", "cache-control": "no-store" });
-  res.end(JSON.stringify({ ok: true, instance: INSTANCE, rooms: lobby.rooms.size, sessions: sessions.size }));
+  res.end(JSON.stringify({ ok: true, instance: instanceId(), rooms: lobby.rooms.size, sessions: sessions.size }));
 });
 serveWebSockets(new import_websocket_server.default({ server, maxPayload: 64 * 1024 }), sessions);
 var vercel_default = server;

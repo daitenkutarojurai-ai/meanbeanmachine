@@ -1,6 +1,8 @@
 import { defineConfig } from 'vite';
 
 export default defineConfig({
+  // Relative asset paths: works at a domain root, under GitHub Pages' /repo/ path, and inside a mobile app shell.
+  base: './',
   server: {
     port: 5173,
     proxy: {
