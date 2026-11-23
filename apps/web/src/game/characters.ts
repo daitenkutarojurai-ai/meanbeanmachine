@@ -1,5 +1,5 @@
 import type { AiProfile } from '@mbm/engine';
-import type { SceneKind } from '../render/scenes.ts';
+import type { SceneKind } from '../render/stage.ts';
 
 export type Head = 'round' | 'square' | 'dome' | 'tall' | 'wide' | 'kettle' | 'helmet' | 'cat' | 'dragon' | 'mouse' | 'bean' | 'boss';
 export type Eyes = 'dots' | 'visor' | 'mono' | 'big' | 'slit' | 'goggles';

@@ -29,7 +29,23 @@ export interface PulsePatch {
   vibrato?: number;
 }
 
-export type Patch = { kind: 'fm'; p: FmPatch } | { kind: 'pulse'; p: PulsePatch } | { kind: 'tri'; p: PulsePatch };
+export interface SawPatch {
+  /** Spread of the two detuned saws, in cents. */
+  detune: number;
+  cutoff: number;
+  /** Extra filter opening at the attack, swept down over `decay`. */
+  sweep: number;
+  q: number;
+  attack: number;
+  decay: number;
+  sustain: number;
+  release: number;
+  vibrato?: number;
+  /** Mix in a sine one octave down for weight (bass). */
+  sub?: number;
+}
+
+export type Patch = { kind: 'fm'; p: FmPatch } | { kind: 'pulse'; p: PulsePatch } | { kind: 'tri'; p: PulsePatch } | { kind: 'saw'; p: SawPatch };
 
 export const midiToHz = (n: number): number => 440 * 2 ** ((n - 69) / 12);
 
@@ -143,6 +159,7 @@ export class Synth {
   play(patch: Patch, dest: AudioNode, t: number, midi: number, dur: number, vol: number, echo = false): void {
     const f = midiToHz(midi);
     if (patch.kind === 'fm') this.fm(patch.p, dest, t, f, dur, vol, echo);
+    else if (patch.kind === 'saw') this.saw(patch.p, dest, t, f, dur, vol, echo);
     else this.pulse(patch.p, dest, t, f, dur, vol, patch.kind === 'tri', echo);
   }
 
@@ -172,6 +189,39 @@ export class Synth {
     if (echo) amp.connect(this.echo);
     mod.start(t);
     mod.stop(stop);
+  }
+
+  saw(p: SawPatch, dest: AudioNode, t: number, freq: number, dur: number, vol: number, echo = false): void {
+    const ctx = this.ctx;
+    const amp = ctx.createGain();
+    const stop = this.envelope(amp.gain, t, dur, p.attack, p.decay, p.sustain, p.release, vol);
+    const filter = ctx.createBiquadFilter();
+    filter.type = 'lowpass';
+    filter.Q.value = p.q;
+    filter.frequency.setValueAtTime(Math.min(18000, p.cutoff + p.sweep), t);
+    filter.frequency.exponentialRampToValueAtTime(Math.max(60, p.cutoff), t + Math.max(0.02, p.decay));
+    filter.connect(amp);
+    for (const cents of [-p.detune, p.detune]) {
+      const o = ctx.createOscillator();
+      o.type = 'sawtooth';
+      o.frequency.setValueAtTime(freq, t);
+      o.detune.setValueAtTime(cents, t);
+      if (p.vibrato) this.vibrato(o.frequency, freq, t, p.vibrato, 0.18, stop);
+      o.connect(filter);
+      o.start(t);
+      o.stop(stop);
+    }
+    if (p.sub) {
+      const s = ctx.createOscillator();
+      s.frequency.setValueAtTime(freq / 2, t);
+      const sg = ctx.createGain();
+      sg.gain.value = p.sub;
+      s.connect(sg).connect(amp);
+      s.start(t);
+      s.stop(stop);
+    }
+    amp.connect(dest);
+    if (echo) amp.connect(this.echo);
   }
 
   pulse(p: PulsePatch, dest: AudioNode, t: number, freq: number, dur: number, vol: number, triangle = false, echo = false): void {
@@ -224,17 +274,27 @@ export class Synth {
   }
 
   kick(dest: AudioNode, t: number, vol: number): void {
-    this.sweep('sine', dest, t, 160, 42, 0.22, vol);
-    this.noiseHit(dest, t, 0.012, vol * 0.5, 'highpass', 1500);
+    const ctx = this.ctx;
+    const o = ctx.createOscillator();
+    o.frequency.setValueAtTime(170, t);
+    o.frequency.exponentialRampToValueAtTime(46, t + 0.11);
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(vol * 1.1, t);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + 0.38);
+    o.connect(g).connect(dest);
+    o.start(t);
+    o.stop(t + 0.4);
+    this.noiseHit(dest, t, 0.01, vol * 0.4, 'highpass', 2500);
   }
 
+  /** A modern clap: three quick noise bursts and a short tail. */
   snare(dest: AudioNode, t: number, vol: number): void {
-    this.noiseHit(dest, t, 0.16, vol * 0.75, 'bandpass', 1900, 0.6);
-    this.sweep('triangle', dest, t, 220, 160, 0.08, vol * 0.5);
+    for (const dt of [0, 0.011, 0.022]) this.noiseHit(dest, t + dt, 0.02, vol * 0.7, 'bandpass', 1300, 1.1);
+    this.noiseHit(dest, t + 0.03, 0.16, vol * 0.45, 'bandpass', 1500, 0.8);
   }
 
   hat(dest: AudioNode, t: number, vol: number, open = false): void {
-    this.noiseHit(dest, t, open ? 0.22 : 0.035, vol, 'highpass', 7500);
+    this.noiseHit(dest, t, open ? 0.2 : 0.03, vol, 'highpass', 9000);
   }
 
   crash(dest: AudioNode, t: number, vol: number): void {

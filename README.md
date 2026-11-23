@@ -2,18 +2,17 @@
 
 A falling-bean puzzle battler that plays by the **exact rules of *Dr. Robotnik's Mean Bean Machine*** (Mega Drive, 1993) with an all-new cast, playable in the browser, against the computer, on one keyboard, or **online**.
 
-**Play:** https://bean-machine.important-leech.workers.dev (full game + online) · https://daitenkutarojurai-ai.github.io/meanbeanmachine/ (mirror)
+**Play:** https://daitenkutarojurai-ai.github.io/meanbeanmachine/
 
-Professor Grimgear has built a Bean Machine to turn the beans of Beanbury into robots. Sprout, a small green bean, fights through 12 of his machines and then the Professor himself.
+Professor Grimgear has built a Bean Machine to turn the beans of Beanbury into robots. Sprout, a brave little bean with a red neckerchief (and a lot of opinions), stops him one chain at a time.
 
 ## What's in it
 
-- **Original rules, from the original code.** Every timing and table (fall speeds, lock delay, scoring, 70 points per refugee, 30-per-turn drops, no offsetting, the death square, the rotation kicks) was read from the game's disassembly. See [docs/MECHANICS.md](docs/MECHANICS.md) for each value and the ROM routine it comes from.
-- **Scenario mode**: 13 stages, four difficulties, story scenes, continues, saved progress.
-- **Online battle**: quick match or private rooms with a 4-letter code, best of 1–15, handicap levels 1–5.
-- **1P vs 2P** on one keyboard or two gamepads; **vs Computer** against any opponent you've reached; **Exercise** (endless solo).
-- New characters with expressive portraits that react to the match, procedural pixel art, synthesised chiptune music and sound. No Sega assets are used.
-- Keyboard, gamepad and on-screen touch controls.
+- **Exact original rules.** Every timing and table (fall speeds, lock delay, scoring, 70 points per refugee, 30-per-turn drops, no offsetting, the death square, the rotation kicks) comes from the 1993 game's disassembly. See [docs/MECHANICS.md](docs/MECHANICS.md). Only the rules are classic; the look and sound are modern.
+- **One-tap play, Clash-style home.** A big BATTLE button matches you with a robot from your arena. Win trophies to climb 11 arenas, earn chests that unlock over time, open them for coins, gems and skins, finish daily quests, collect Trophy Road rewards, and spend in a daily shop. Everything you earn is cosmetic or currency: matches are always fair.
+- **Sprout, animated.** A vector character with squash and stretch, a bouncy leaf, blinking, eyebrows and moods (cheering on chains, sweating when the stack is high, flinching when refugees land, sulking when he loses), speech bubbles with his own voice, and 8 skins (Ninja, Captain, Astro, King, Blaze…).
+- **Modes:** ranked battles, online battles and private rooms (best of 1–7), Adventure (13 story stages, 4 difficulties), two players on one device, endless practice.
+- **Modern presentation:** sharp at any screen resolution, glossy jelly beans with faces, animated arena backdrops, glowing effects, a synthesised soundtrack (9 tracks) with chain shouts. Landscape layout on desktop, portrait layout with swipe controls on phones.
 
 ## Play locally
 
@@ -82,7 +81,7 @@ A copy of the client can also be pointed at any server with `?server=wss://host/
 
 ## Roadmap
 
-1. **Web app with multiplayer**: this release.
+1. **Web app with multiplayer**: done. Then a modern redesign with a progression loop: done.
 2. **Mobile app**: wrap the same client with Capacitor for Android/iOS (the engine and renderer are already DOM-light and the touch pad is in), add haptics, offline play and store builds.
 3. **More game**: accounts and ranked matchmaking (the server already judges results authoritatively), XP and unlockable characters/boards, daily challenges, replays (input logs are already recorded), tournaments.
 

@@ -1,26 +1,41 @@
 import type { Character, Portrait } from '../game/characters.ts';
-import { type Ctx, ctx2d, ellipse, ellipseOutlined, line, makeCanvas, rect, rectOutlined, triangle } from './pixels.ts';
+import { type Ctx, ctx2d, ellipse, ellipseOutlined, line, makeCanvas, rect, rectOutlined, setOutline, triangle } from './pixels.ts';
 
 export type Expression = 'idle' | 'happy' | 'worried' | 'ko' | 'blink';
 
 const SIZE = 64;
 const cache = new Map<string, HTMLCanvasElement>();
 
-export function portrait(ch: Character, expr: Expression = 'idle'): HTMLCanvasElement {
-  const key = `${ch.id}:${expr}`;
+/** A robot portrait `px` pixels square, drawn as smooth vectors. */
+export function portrait(ch: Character, expr: Expression = 'idle', px = 128): HTMLCanvasElement {
+  const size = Math.max(16, Math.round(px));
+  const key = `${ch.id}:${expr}:${size}`;
   let c = cache.get(key);
   if (!c) {
-    c = makeCanvas(SIZE, SIZE);
-    drawPortrait(ctx2d(c), ch.portrait, expr);
+    if (cache.size > 160) cache.clear();
+    c = makeCanvas(size, size);
+    const g = ctx2d(c);
+    g.scale(size / SIZE, size / SIZE);
+    setOutline(1.3);
+    drawPortrait(g, ch.portrait, expr);
+    setOutline(1);
     cache.set(key, c);
   }
   return c;
 }
 
 function drawPortrait(g: Ctx, p: Portrait, expr: Expression): void {
-  // Backdrop: diagonal stripes in the character's colour.
+  // Backdrop: soft radial light in the character's colour.
+  const bgGrad = g.createRadialGradient(SIZE * 0.5, SIZE * 0.4, 4, SIZE * 0.5, SIZE * 0.5, SIZE * 0.75);
+  bgGrad.addColorStop(0, p.light);
+  bgGrad.addColorStop(0.35, p.bg);
+  bgGrad.addColorStop(1, '#0a0614');
   rect(g, 0, 0, SIZE, SIZE, p.bg);
-  g.fillStyle = 'rgba(255,255,255,0.06)';
+  g.fillStyle = bgGrad;
+  g.globalAlpha = 0.85;
+  g.fillRect(0, 0, SIZE, SIZE);
+  g.globalAlpha = 1;
+  g.fillStyle = 'rgba(255,255,255,0.04)';
   for (let i = -SIZE; i < SIZE; i += 8) {
     g.beginPath();
     g.moveTo(i, SIZE);

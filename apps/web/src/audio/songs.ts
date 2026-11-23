@@ -1,10 +1,12 @@
 // Original music. Each section gives a melody (16 steps of a 16th note per bar: a note,
 // "-" to hold, "." for rest) and one chord per bar ("Dm7 G" splits a bar). Bass lines,
 // arpeggios and drums are generated from the chords in the chosen styles.
-import type { FmPatch, Patch, PulsePatch } from './synth.ts';
+import type { FmPatch, Patch, PulsePatch, SawPatch } from './synth.ts';
 
 const fm = (p: FmPatch): Patch => ({ kind: 'fm', p });
 const pulse = (p: PulsePatch): Patch => ({ kind: 'pulse', p });
+const tri = (p: PulsePatch): Patch => ({ kind: 'tri', p });
+const saw = (p: SawPatch): Patch => ({ kind: 'saw', p });
 
 export const PATCHES = {
   bass: fm({ ratio: 1, index: 3.2, indexEnd: 0.7, indexTime: 0.18, attack: 0.004, decay: 0.18, sustain: 0.55, release: 0.06 }),
@@ -19,6 +21,15 @@ export const PATCHES = {
   arp25: pulse({ duty: 0.25, attack: 0.003, decay: 0.08, sustain: 0.4, release: 0.05 }),
   lead25: pulse({ duty: 0.25, attack: 0.005, decay: 0.1, sustain: 0.8, release: 0.06, vibrato: 0.012 }),
   pad: pulse({ duty: 0.5, attack: 0.12, decay: 0.4, sustain: 0.55, release: 0.4 }),
+  // Modern palette.
+  supersaw: saw({ detune: 14, cutoff: 2600, sweep: 3500, q: 1, attack: 0.012, decay: 0.25, sustain: 0.7, release: 0.12, vibrato: 0.008 }),
+  softLead: saw({ detune: 9, cutoff: 1800, sweep: 1800, q: 0.7, attack: 0.02, decay: 0.3, sustain: 0.65, release: 0.15, vibrato: 0.01 }),
+  brightLead: saw({ detune: 18, cutoff: 3600, sweep: 4000, q: 1.2, attack: 0.008, decay: 0.2, sustain: 0.75, release: 0.1, vibrato: 0.009 }),
+  darkLead: saw({ detune: 12, cutoff: 1200, sweep: 2400, q: 2, attack: 0.01, decay: 0.3, sustain: 0.7, release: 0.12, vibrato: 0.01 }),
+  pluck: tri({ duty: 0.5, attack: 0.002, decay: 0.12, sustain: 0.15, release: 0.08 }),
+  sawBass: saw({ detune: 6, cutoff: 500, sweep: 1400, q: 3, attack: 0.004, decay: 0.16, sustain: 0.5, release: 0.06, sub: 0.6 }),
+  subBass: saw({ detune: 3, cutoff: 300, sweep: 500, q: 1, attack: 0.01, decay: 0.3, sustain: 0.7, release: 0.15, sub: 0.9 }),
+  sawPad: saw({ detune: 20, cutoff: 1400, sweep: 400, q: 0.5, attack: 0.25, decay: 0.6, sustain: 0.7, release: 0.6 }),
 } satisfies Record<string, Patch>;
 
 type BassStyle = 'pop' | 'rock' | 'funk' | 'drive' | 'march' | 'soft' | 'none';
@@ -173,9 +184,9 @@ export const SONGS = {
   title: {
     bpm: 132,
     loop: true,
-    lead: PATCHES.lead,
-    arp: PATCHES.arp12,
-    bass: PATCHES.bass,
+    lead: PATCHES.softLead,
+    arp: PATCHES.pluck,
+    bass: PATCHES.subBass,
     vol: { lead: 0.15, arp: 0.045, bass: 0.2, drums: 0.3 },
     sections: {
       A: {
@@ -206,9 +217,9 @@ export const SONGS = {
   battle: {
     bpm: 150,
     loop: true,
-    lead: PATCHES.brass,
-    arp: PATCHES.arp25,
-    bass: PATCHES.slap,
+    lead: PATCHES.supersaw,
+    arp: PATCHES.pluck,
+    bass: PATCHES.sawBass,
     vol: { lead: 0.14, arp: 0.04, bass: 0.22, drums: 0.34 },
     sections: {
       A: {
@@ -245,8 +256,8 @@ export const SONGS = {
     bpm: 156,
     loop: true,
     lead: PATCHES.epiano,
-    arp: PATCHES.arp12,
-    bass: PATCHES.slap,
+    arp: PATCHES.pluck,
+    bass: PATCHES.sawBass,
     vol: { lead: 0.14, arp: 0.045, bass: 0.2, drums: 0.3 },
     sections: {
       A: {
@@ -275,9 +286,9 @@ export const SONGS = {
   battle3: {
     bpm: 168,
     loop: true,
-    lead: PATCHES.brass,
-    arp: PATCHES.arp25,
-    bass: PATCHES.bass,
+    lead: PATCHES.brightLead,
+    arp: PATCHES.pluck,
+    bass: PATCHES.sawBass,
     vol: { lead: 0.14, arp: 0.04, bass: 0.22, drums: 0.36 },
     sections: {
       A: {
@@ -304,9 +315,9 @@ export const SONGS = {
   boss: {
     bpm: 140,
     loop: true,
-    lead: PATCHES.organ,
+    lead: PATCHES.darkLead,
     arp: PATCHES.arp12,
-    bass: PATCHES.bass,
+    bass: PATCHES.subBass,
     vol: { lead: 0.13, arp: 0.045, bass: 0.24, drums: 0.36 },
     sections: {
       A: {
@@ -333,9 +344,9 @@ export const SONGS = {
   danger: {
     bpm: 184,
     loop: true,
-    lead: PATCHES.lead25,
+    lead: PATCHES.brightLead,
     arp: PATCHES.arp12,
-    bass: PATCHES.bass,
+    bass: PATCHES.sawBass,
     vol: { lead: 0.08, arp: 0.0, bass: 0.24, drums: 0.36 },
     sections: {
       A: {
@@ -355,8 +366,8 @@ export const SONGS = {
     bpm: 92,
     loop: true,
     lead: PATCHES.bell,
-    arp: PATCHES.pad,
-    bass: PATCHES.softBass,
+    arp: PATCHES.sawPad,
+    bass: PATCHES.subBass,
     vol: { lead: 0.2, arp: 0.035, bass: 0.2, drums: 0.2 },
     sections: {
       A: {
@@ -385,9 +396,9 @@ export const SONGS = {
   win: {
     bpm: 150,
     loop: false,
-    lead: PATCHES.brass,
-    arp: PATCHES.arp25,
-    bass: PATCHES.bass,
+    lead: PATCHES.supersaw,
+    arp: PATCHES.pluck,
+    bass: PATCHES.sawBass,
     vol: { lead: 0.16, arp: 0.05, bass: 0.22, drums: 0.3 },
     sections: {
       A: {
@@ -404,8 +415,8 @@ export const SONGS = {
   lose: {
     bpm: 110,
     loop: false,
-    lead: PATCHES.lead25,
-    arp: PATCHES.pad,
+    lead: PATCHES.softLead,
+    arp: PATCHES.sawPad,
     bass: PATCHES.softBass,
     vol: { lead: 0.12, arp: 0.03, bass: 0.18, drums: 0 },
     sections: {

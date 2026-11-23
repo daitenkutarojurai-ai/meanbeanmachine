@@ -1,12 +1,10 @@
 import { audio } from './audio.ts';
 import { Input, isTouchDevice } from './input.ts';
-import { H, Renderer, W } from './render/renderer.ts';
+import { BattleRenderer } from './render/battleRenderer.ts';
 import { settings } from './storage.ts';
-import { initUi } from './ui.ts';
+import { TouchControls } from './touch.ts';
 
 export interface Session {
-  /** Switching between kinds (menu, story, battle) plays the iris transition. */
-  readonly kind?: string;
   /** Advance the simulation to `now` (ms). */
   update(now: number): void;
   render(): void;
@@ -37,84 +35,65 @@ export class FixedStepper {
   }
 }
 
+/** Owns the play canvas, input and the running match; the home screen is plain HTML. */
 export class App {
-  readonly renderer: Renderer;
-  readonly input = new Input();
   readonly canvas: HTMLCanvasElement;
+  readonly renderer: BattleRenderer;
+  readonly input = new Input();
+  readonly touch: TouchControls;
+  readonly hud: HTMLElement;
   private session: Session | null = null;
-  private iris = 99;
 
   constructor() {
     this.canvas = document.getElementById('screen') as HTMLCanvasElement;
-    this.canvas.width = W;
-    this.canvas.height = H;
-    this.renderer = new Renderer(this.canvas);
-    initUi(this.input);
+    this.hud = document.getElementById('hud')!;
+    this.renderer = new BattleRenderer(this.canvas);
+    this.touch = new TouchControls(this.canvas, this.renderer);
     audio.setVolumes(settings.sfx, settings.music);
-
     const unlock = (): void => audio.unlock();
     window.addEventListener('pointerdown', unlock);
     window.addEventListener('keydown', unlock);
-
-    window.addEventListener('resize', () => this.resize());
-    this.resize();
-    this.updateTouch();
-    this.updateCrt();
-
     const loop = (now: number): void => {
       this.input.pollMenuPads();
-      this.session?.update(now);
-      this.session?.render();
-      this.drawIris();
+      if (this.session) {
+        this.session.update(now);
+        this.session.render();
+      }
       requestAnimationFrame(loop);
     };
     requestAnimationFrame(loop);
-    // Browsers stop animation frames in background tabs; keep online games ticking.
+    // Background tabs stop animation frames; online matches must keep ticking.
     setInterval(() => {
       if (document.hidden) this.session?.update(performance.now());
     }, 200);
   }
 
-  setSession(s: Session | null): void {
-    if (s?.kind && this.session?.kind && s.kind !== this.session.kind) this.iris = 0;
+  /** Shows the play canvas and starts a match. */
+  play(s: Session): void {
     this.session?.dispose();
+    this.hud.replaceChildren();
+    document.getElementById('ui')!.hidden = true;
+    document.getElementById('game')!.hidden = false;
+    this.touch.reset();
+    this.touch.enabled = this.controls === 'gestures';
+    document.getElementById('touch')!.hidden = this.controls !== 'buttons';
     this.session = s;
   }
 
-  /** Iris-in from black, like a cartridge cutting to the next scene. */
-  private drawIris(): void {
-    if (this.iris >= 26) return;
-    const t = this.iris / 26;
-    this.iris++;
-    const g = this.renderer.g;
-    const r = t * t * Math.hypot(W, H) * 0.6;
-    g.fillStyle = '#000';
-    g.beginPath();
-    g.rect(0, 0, W, H);
-    g.arc(W / 2, H / 2, Math.max(0.5, r), 0, Math.PI * 2, true);
-    g.fill('evenodd');
+  /** Back to the HTML screens. */
+  leave(): void {
+    this.session?.dispose();
+    this.session = null;
+    this.hud.replaceChildren();
+    this.touch.enabled = false;
+    document.getElementById('game')!.hidden = true;
+    document.getElementById('touch')!.hidden = true;
+    document.getElementById('ui')!.hidden = false;
   }
 
-  updateCrt(): void {
-    document.getElementById('stage')!.classList.toggle('crt', settings.crt);
-  }
-
-  resize(): void {
-    const touch = !document.getElementById('touch')!.hidden;
-    const reserve = touch && innerHeight > innerWidth ? 170 : 0;
-    const u = Math.max(1, Math.min((innerWidth - 8) / W, (innerHeight - 8 - reserve) / H));
-    // Whole-pixel scaling when there is room keeps the pixel art crisp.
-    const scale = u >= 2 ? Math.floor(u) : u;
-    document.documentElement.style.setProperty('--u', `${scale}px`);
-  }
-
-  updateTouch(): void {
-    const on = settings.touch === 'on' || (settings.touch === 'auto' && isTouchDevice());
-    document.getElementById('touch')!.hidden = !on;
-    this.resize();
-  }
-
-  get touchEnabled(): boolean {
-    return !document.getElementById('touch')!.hidden;
+  get controls(): 'gestures' | 'buttons' | 'off' {
+    if (settings.touch === 'off') return 'off';
+    if (settings.touch === 'on') return 'buttons';
+    return isTouchDevice() ? 'gestures' : 'off';
   }
 }

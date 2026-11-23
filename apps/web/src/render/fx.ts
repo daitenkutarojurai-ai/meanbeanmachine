@@ -1,15 +1,12 @@
-import { CELL_PX, type SimEvent, VISIBLE_TOP } from '@mbm/engine';
-import { BEAN_COLOR_CSS, beanSprite, starSprite } from './beans.ts';
-import { fancyText } from './font.ts';
-import { type Ctx, rect } from './pixels.ts';
+import { type SimEvent, VISIBLE_TOP } from '@mbm/engine';
+import { beanCss, jellyAt } from './jelly.ts';
+import { DISPLAY, gradientText } from './text.ts';
 
-export const FIELD_W = 6 * CELL_PX;
-export const FIELD_H = 12 * CELL_PX;
-
-/** What effects need to know about a board on screen. */
+/** Where a board sits, in layout units. */
 export interface FxBoard {
-  fx: number;
-  fy: number;
+  x: number;
+  y: number;
+  cell: number;
   shake: number;
 }
 
@@ -23,22 +20,17 @@ interface Particle {
   color: string;
   size: number;
   gravity: number;
-}
-
-interface Star {
-  x: number;
-  y: number;
-  vx: number;
-  vy: number;
-  life: number;
-  color: string;
+  glow: boolean;
+  spin?: number;
 }
 
 interface Ring {
   x: number;
   y: number;
   r: number;
+  grow: number;
   life: number;
+  max: number;
   color: string;
 }
 
@@ -47,15 +39,17 @@ interface PopAnim {
   y: number;
   color: number;
   t: number;
+  cell: number;
 }
 
-interface ChainText {
+interface Floater {
   x: number;
   y: number;
-  chain: number;
   t: number;
   big: string;
   small: string;
+  tone: number;
+  cell: number;
 }
 
 interface Orb {
@@ -69,273 +63,277 @@ interface Orb {
   target: number;
 }
 
-const CHAIN_FILLS: [string, string][] = [
-  ['#ffffff', '#c0d8ff'],
-  ['#fff27a', '#ffb020'],
-  ['#ffd27a', '#ff6a20'],
-  ['#ff9ab0', '#ff3050'],
-  ['#f0a8ff', '#a040ff'],
-  ['#a8f0ff', '#2080ff'],
-  ['#b8ffb0', '#20c040'],
+const CHAIN_TONES: [string, string][] = [
+  ['#ffffff', '#bcd4ff'],
+  ['#fff27a', '#ffae1a'],
+  ['#ffd27a', '#ff6a1a'],
+  ['#ffa8c0', '#ff2e5a'],
+  ['#f2b0ff', '#a33af0'],
+  ['#b0f0ff', '#2a84ff'],
+  ['#c0ffb4', '#1ec44a'],
 ];
 
-/** Short-lived eye candy driven by simulation events. */
 export class Effects {
   private particles: Particle[] = [];
-  private stars: Star[] = [];
   private rings: Ring[] = [];
   private pops: PopAnim[] = [];
-  private chains: ChainText[] = [];
+  private floaters: Floater[] = [];
   private orbs: Orb[] = [];
   private popCells: ({ x: number; y: number; color: number }[] | null)[] = [];
-  /** White screen flash on big chains, 0..1. */
   flash = 0;
-  /** Whole-screen shake in pixels. */
   shake = 0;
-  /** "base x bonus" readout per board while a chain is resolving. */
   stepText: { text: string; life: number }[] = [];
-  /** Frames left of the refugee-queue bounce per board. */
   queueBump: number[] = [];
+  /** Set when an orb lands, so the session can make the target flinch. */
+  hits: number[] = [];
 
   reset(): void {
     this.particles = [];
-    this.stars = [];
     this.rings = [];
     this.pops = [];
-    this.chains = [];
+    this.floaters = [];
     this.orbs = [];
     this.popCells = [];
     this.stepText = [];
     this.queueBump = [];
+    this.hits = [];
     this.flash = 0;
     this.shake = 0;
   }
 
-  handle(board: number, events: SimEvent[], views: FxBoard[]): void {
-    const v = views[board];
-    if (!v) return;
+  handle(board: number, events: SimEvent[], boards: FxBoard[]): void {
+    const b = boards[board];
+    if (!b) return;
+    const c = b.cell;
     for (const e of events) {
       switch (e.type) {
         case 'pop': {
           let sx = 0;
           let sy = 0;
-          for (const c of e.cells) {
-            sx += v.fx + c.x * CELL_PX + 8;
-            sy += v.fy + (c.y - VISIBLE_TOP) * CELL_PX + 8;
+          for (const cell of e.cells) {
+            sx += b.x + (cell.x + 0.5) * c;
+            sy += b.y + (cell.y - VISIBLE_TOP + 0.5) * c;
           }
           const n = e.cells.length || 1;
           this.popCells[board] = e.cells;
-          this.stepText[board] = { text: `${e.score.base}*${e.score.bonus || 1}`, life: 70 };
+          this.stepText[board] = { text: `${e.score.base} × ${e.score.bonus || 1}`, life: 80 };
           if (e.chain >= 2) {
-            this.chains.push({
-              x: Math.min(Math.max(sx / n, v.fx + 26), v.fx + FIELD_W - 26),
-              y: Math.max(v.fy + 24, sy / n - 10),
-              chain: e.chain,
+            this.floaters.push({
+              x: Math.min(Math.max(sx / n, b.x + c * 1.6), b.x + c * 4.4),
+              y: Math.max(b.y + c * 1.2, sy / n - c * 0.5),
               t: 0,
               big: String(e.chain),
               small: 'CHAIN!',
+              tone: e.chain,
+              cell: c,
             });
           }
-          if (e.chain >= 3) v.shake = Math.max(v.shake, 2 + e.chain * 0.6);
+          if (e.chain >= 3) b.shake = Math.max(b.shake, c * 0.08 * e.chain);
           if (e.chain >= 4) {
-            this.flash = Math.min(0.55, 0.15 + e.chain * 0.06);
-            this.shake = Math.max(this.shake, Math.min(6, e.chain - 1));
+            this.flash = Math.min(0.5, 0.12 + e.chain * 0.06);
+            this.shake = Math.max(this.shake, Math.min(14, (e.chain - 2) * 3));
           }
           break;
         }
         case 'popped': {
           const cells = this.popCells[board];
-          if (cells) this.burst(v, cells);
+          if (cells) this.burst(b, cells);
           this.popCells[board] = null;
           break;
         }
         case 'chainEnd':
-          if (e.garbage > 0 && views.length > 1) {
+          if (e.garbage > 0 && boards.length > 1) {
             const target = 1 - board;
-            const tv = views[target];
+            const t = boards[target];
             this.orbs.push({
-              x0: v.fx + FIELD_W / 2,
-              y0: v.fy + FIELD_H / 3,
-              x1: tv.fx + 20,
-              y1: tv.fy - 8,
+              x0: b.x + c * 3,
+              y0: b.y + c * 4,
+              x1: t.x + t.cell * 1.2,
+              y1: t.y - t.cell * 0.6,
               t: 0,
-              dur: 30,
-              size: Math.min(9, 3 + Math.floor(Math.log2(e.garbage + 1))),
+              dur: 32,
+              size: c * Math.min(0.5, 0.18 + Math.log2(e.garbage + 1) * 0.05),
               target,
             });
           }
           break;
         case 'garbageDrop':
-          if (e.count >= 6) v.shake = Math.max(v.shake, Math.min(10, 2 + e.count / 4));
-          for (let i = 0; i < Math.min(12, e.count); i++) {
-            this.particles.push({
-              x: v.fx + Math.random() * FIELD_W,
-              y: v.fy + 2,
-              vx: (Math.random() - 0.5) * 0.6,
-              vy: 0.3 + Math.random() * 0.4,
-              life: 24,
-              max: 24,
-              color: 'rgba(220,226,240,0.8)',
-              size: 2,
-              gravity: 0,
-            });
+          if (e.count >= 6) b.shake = Math.max(b.shake, Math.min(c * 0.3, c * (0.05 + e.count / 120)));
+          for (let i = 0; i < Math.min(14, e.count); i++) {
+            this.particles.push({ x: b.x + Math.random() * c * 6, y: b.y + 4, vx: (Math.random() - 0.5) * c * 0.02, vy: c * (0.01 + Math.random() * 0.02), life: 26, max: 26, color: 'rgba(230,236,250,0.8)', size: c * 0.06, gravity: 0, glow: false });
           }
           break;
         case 'allClear':
-          this.chains.push({ x: v.fx + FIELD_W / 2, y: v.fy + FIELD_H / 2 - 20, chain: 7, t: 0, big: 'ALL', small: 'CLEAR!' });
-          this.confetti(v);
+          this.floaters.push({ x: b.x + c * 3, y: b.y + c * 5, t: 0, big: 'ALL', small: 'CLEAR!', tone: 7, cell: c });
+          this.confetti(b);
           break;
       }
     }
   }
 
-  private burst(v: FxBoard, cells: { x: number; y: number; color: number }[]): void {
-    for (const c of cells) {
-      const cx = v.fx + c.x * CELL_PX + 8;
-      const cy = v.fy + (c.y - VISIBLE_TOP) * CELL_PX + 8;
-      const col = BEAN_COLOR_CSS[c.color] ?? '#fff';
-      this.pops.push({ x: cx, y: cy, color: c.color, t: 0 });
-      this.rings.push({ x: cx, y: cy, r: 3, life: 14, color: col });
-      for (let k = 0; k < 4; k++) {
-        const a = (k / 4) * Math.PI * 2 + Math.random() * 0.8;
-        const sp = 0.9 + Math.random() * 1.4;
-        this.particles.push({ x: cx, y: cy, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp - 1.4, life: 30, max: 30, color: col, size: 2 + (Math.random() < 0.4 ? 1 : 0), gravity: 0.13 });
+  private burst(b: FxBoard, cells: { x: number; y: number; color: number }[]): void {
+    const c = b.cell;
+    for (const cell of cells) {
+      const cx = b.x + (cell.x + 0.5) * c;
+      const cy = b.y + (cell.y - VISIBLE_TOP + 0.5) * c;
+      const col = beanCss(cell.color);
+      this.pops.push({ x: cx, y: cy, color: cell.color, t: 0, cell: c });
+      this.rings.push({ x: cx, y: cy, r: c * 0.2, grow: c * 0.06, life: 16, max: 16, color: col });
+      for (let k = 0; k < 6; k++) {
+        const a = (k / 6) * Math.PI * 2 + Math.random() * 0.6;
+        const sp = c * (0.03 + Math.random() * 0.05);
+        this.particles.push({ x: cx, y: cy, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp - c * 0.03, life: 34, max: 34, color: col, size: c * (0.07 + Math.random() * 0.06), gravity: c * 0.003, glow: false });
       }
-      for (let k = 0; k < 2; k++) {
+      for (let k = 0; k < 3; k++) {
         const a = Math.random() * Math.PI * 2;
-        this.stars.push({ x: cx, y: cy, vx: Math.cos(a) * 1.6, vy: Math.sin(a) * 1.6 - 0.6, life: 22, color: k ? '#fff8c0' : col });
+        this.particles.push({ x: cx, y: cy, vx: Math.cos(a) * c * 0.05, vy: Math.sin(a) * c * 0.05, life: 24, max: 24, color: '#fff6c0', size: c * 0.08, gravity: 0, glow: true, spin: Math.random() * 6 });
       }
     }
   }
 
-  confetti(v: FxBoard): void {
-    const cols = ['#ff4060', '#ffd040', '#40d060', '#40a0ff', '#c060ff', '#ffffff'];
-    for (let i = 0; i < 60; i++) {
+  confetti(b: FxBoard): void {
+    const cols = ['#ff4d6a', '#ffcb2e', '#3ed760', '#319dff', '#a95cf0', '#ffffff'];
+    const c = b.cell;
+    for (let i = 0; i < 80; i++) {
       this.particles.push({
-        x: v.fx + Math.random() * FIELD_W,
-        y: v.fy - 10 - Math.random() * 40,
-        vx: (Math.random() - 0.5) * 0.8,
-        vy: 0.4 + Math.random() * 0.8,
-        life: 140,
-        max: 140,
+        x: b.x + Math.random() * c * 6,
+        y: b.y - c * (0.5 + Math.random() * 2),
+        vx: (Math.random() - 0.5) * c * 0.03,
+        vy: c * (0.01 + Math.random() * 0.03),
+        life: 160,
+        max: 160,
         color: cols[i % cols.length],
-        size: 2,
-        gravity: 0.01,
+        size: c * 0.1,
+        gravity: c * 0.0004,
+        glow: false,
+        spin: Math.random() * 6,
       });
     }
   }
 
-  update(views: FxBoard[]): void {
+  update(boards: FxBoard[]): void {
     for (const p of this.particles) {
       p.x += p.vx;
       p.y += p.vy;
       p.vy += p.gravity;
+      p.vx *= 0.985;
+      if (p.spin !== undefined) p.spin += 0.2;
       p.life--;
     }
     this.particles = this.particles.filter((p) => p.life > 0);
-    for (const s of this.stars) {
-      s.x += s.vx;
-      s.y += s.vy;
-      s.vx *= 0.94;
-      s.vy *= 0.94;
-      s.life--;
-    }
-    this.stars = this.stars.filter((s) => s.life > 0);
     for (const r of this.rings) {
-      r.r += 1.6;
+      r.r += r.grow;
+      r.grow *= 0.9;
       r.life--;
     }
     this.rings = this.rings.filter((r) => r.life > 0);
     for (const p of this.pops) p.t++;
-    this.pops = this.pops.filter((p) => p.t < 10);
-    for (const c of this.chains) c.t++;
-    this.chains = this.chains.filter((c) => c.t < 70);
+    this.pops = this.pops.filter((p) => p.t < 12);
+    for (const f of this.floaters) f.t++;
+    this.floaters = this.floaters.filter((f) => f.t < 75);
     for (const o of this.orbs) {
       o.t++;
-      if (o.t % 2 === 0) {
-        const [x, y] = this.orbPos(o);
-        this.stars.push({ x, y, vx: (Math.random() - 0.5) * 0.6, vy: (Math.random() - 0.5) * 0.6, life: 14, color: '#fff2a0' });
-      }
+      const [x, y] = this.orbPos(o);
+      this.particles.push({ x, y, vx: (Math.random() - 0.5) * o.size * 0.1, vy: (Math.random() - 0.5) * o.size * 0.1, life: 16, max: 16, color: '#fff2a8', size: o.size * 0.35, gravity: 0, glow: true });
       if (o.t === o.dur) {
-        this.queueBump[o.target] = 12;
-        for (let k = 0; k < 6; k++) {
-          const a = (k / 6) * Math.PI * 2;
-          this.stars.push({ x: o.x1, y: o.y1, vx: Math.cos(a) * 2, vy: Math.sin(a) * 2, life: 16, color: '#ffffff' });
-        }
+        this.queueBump[o.target] = 14;
+        this.hits.push(o.target);
+        this.rings.push({ x: o.x1, y: o.y1, r: o.size, grow: o.size * 0.4, life: 14, max: 14, color: '#fff2a8' });
       }
     }
     this.orbs = this.orbs.filter((o) => o.t <= o.dur);
     for (const s of this.stepText) if (s) s.life--;
     this.queueBump = this.queueBump.map((q) => Math.max(0, (q ?? 0) - 1));
-    for (const v of views) if (v.shake > 0) v.shake = Math.max(0, v.shake - 0.5);
-    this.flash = Math.max(0, this.flash - 0.04);
-    this.shake = Math.max(0, this.shake - 0.4);
+    for (const b of boards) if (b.shake > 0) b.shake = Math.max(0, b.shake * 0.88 - 0.05);
+    this.flash = Math.max(0, this.flash - 0.035);
+    this.shake = Math.max(0, this.shake * 0.9 - 0.1);
   }
 
   private orbPos(o: Orb): [number, number] {
     const t = Math.min(1, o.t / o.dur);
     const e = t * t * (3 - 2 * t);
-    return [o.x0 + (o.x1 - o.x0) * e, o.y0 + (o.y1 - o.y0) * e - Math.sin(t * Math.PI) * 46];
+    const lift = Math.hypot(o.x1 - o.x0, o.y1 - o.y0) * 0.3;
+    return [o.x0 + (o.x1 - o.x0) * e, o.y0 + (o.y1 - o.y0) * e - Math.sin(t * Math.PI) * lift];
   }
 
-  draw(g: Ctx, frame: number): void {
+  draw(g: CanvasRenderingContext2D, scale: number): void {
     for (const p of this.pops) {
-      const k = 1 + p.t * 0.06;
-      const a = 1 - p.t / 10;
-      const s = Math.round(16 * k);
-      g.globalAlpha = a;
-      g.drawImage(beanSprite(p.color, 0, p.t < 4, 'wide'), Math.round(p.x - s / 2), Math.round(p.y - s / 2), s, s);
+      const k = 1 + p.t * 0.05;
+      const s = p.cell * k;
+      g.globalAlpha = 1 - p.t / 12;
+      g.drawImage(jellyAt(p.color, s * scale, 'wide'), p.x - s / 2, p.y - s / 2, s, s);
     }
     g.globalAlpha = 1;
+    g.save();
+    g.globalCompositeOperation = 'lighter';
     for (const r of this.rings) {
-      g.globalAlpha = r.life / 14;
-      g.strokeStyle = r.life > 8 ? '#ffffff' : r.color;
-      g.lineWidth = 1;
+      g.globalAlpha = r.life / r.max;
+      g.strokeStyle = r.life > r.max * 0.6 ? '#ffffff' : r.color;
+      g.lineWidth = Math.max(1, r.r * 0.12);
       g.beginPath();
       g.arc(r.x, r.y, r.r, 0, Math.PI * 2);
       g.stroke();
     }
-    g.globalAlpha = 1;
-    for (const p of this.particles) {
-      g.globalAlpha = Math.min(1, p.life / 12);
-      rect(g, p.x, p.y, p.size, p.size, p.color);
-    }
-    g.globalAlpha = 1;
-    for (const s of this.stars) {
-      g.globalAlpha = Math.min(1, s.life / 8);
-      g.drawImage(starSprite(s.color), Math.round(s.x - 3), Math.round(s.y - 3));
-    }
-    g.globalAlpha = 1;
     for (const o of this.orbs) {
       const [x, y] = this.orbPos(o);
-      g.fillStyle = 'rgba(255,240,160,0.3)';
+      const halo = g.createRadialGradient(x, y, 0, x, y, o.size * 2.2);
+      halo.addColorStop(0, 'rgba(255,250,210,0.95)');
+      halo.addColorStop(0.4, 'rgba(255,220,120,0.5)');
+      halo.addColorStop(1, 'rgba(255,200,80,0)');
+      g.globalAlpha = 1;
+      g.fillStyle = halo;
       g.beginPath();
-      g.arc(x, y, o.size + 4, 0, Math.PI * 2);
+      g.arc(x, y, o.size * 2.2, 0, Math.PI * 2);
       g.fill();
-      g.fillStyle = '#fff6c8';
-      g.beginPath();
-      g.arc(x, y, o.size, 0, Math.PI * 2);
-      g.fill();
-      g.fillStyle = '#ffffff';
-      g.fillRect(Math.round(x - o.size / 3), Math.round(y - o.size / 3), 2, 2);
     }
-    for (const c of this.chains) this.drawChain(g, c, frame);
+    g.restore();
+    for (const p of this.particles) {
+      g.globalAlpha = Math.min(1, p.life / 12);
+      if (p.glow) {
+        g.save();
+        g.globalCompositeOperation = 'lighter';
+        g.translate(p.x, p.y);
+        g.rotate(p.spin ?? 0);
+        g.fillStyle = p.color;
+        const s = p.size;
+        g.beginPath();
+        g.moveTo(0, -s * 1.6);
+        g.lineTo(s * 0.35, -s * 0.35);
+        g.lineTo(s * 1.6, 0);
+        g.lineTo(s * 0.35, s * 0.35);
+        g.lineTo(0, s * 1.6);
+        g.lineTo(-s * 0.35, s * 0.35);
+        g.lineTo(-s * 1.6, 0);
+        g.lineTo(-s * 0.35, -s * 0.35);
+        g.closePath();
+        g.fill();
+        g.restore();
+      } else if (p.spin !== undefined) {
+        g.save();
+        g.translate(p.x, p.y);
+        g.rotate(p.spin);
+        g.fillStyle = p.color;
+        g.fillRect(-p.size / 2, -p.size / 4, p.size, p.size / 2);
+        g.restore();
+      } else {
+        g.fillStyle = p.color;
+        g.beginPath();
+        g.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+        g.fill();
+      }
+    }
+    g.globalAlpha = 1;
+    for (const f of this.floaters) this.drawFloater(g, f);
   }
 
-  private drawChain(g: Ctx, c: ChainText, frame: number): void {
-    const fill = CHAIN_FILLS[Math.min(c.chain - 1, CHAIN_FILLS.length - 1)];
-    const cycle = c.chain >= 5 ? CHAIN_FILLS[(Math.floor(frame / 4) % 6) + 1] : fill;
-    // Pop in big, settle, then drift up and fade.
-    const pop = c.t < 8 ? 1.8 - (c.t / 8) * 0.8 + Math.sin((c.t / 8) * Math.PI) * 0.2 : 1;
-    const y = c.y - Math.max(0, c.t - 30) * 0.4;
-    g.globalAlpha = c.t > 55 ? (70 - c.t) / 15 : 1;
-    const bigScale = c.big.length > 1 ? 2 : 3;
-    const big = fancyText(c.big, bigScale, cycle[0], cycle[1]);
-    const small = fancyText(c.small, 1, '#ffffff', fill[0]);
-    const bw = Math.round(big.width * pop);
-    const bh = Math.round(big.height * pop);
-    g.drawImage(big, Math.round(c.x - bw / 2), Math.round(y - bh / 2 - 4), bw, bh);
-    g.drawImage(small, Math.round(c.x - small.width / 2), Math.round(y + bh / 2 - 4));
+  private drawFloater(g: CanvasRenderingContext2D, f: Floater): void {
+    const tone = CHAIN_TONES[Math.min(f.tone - 1, CHAIN_TONES.length - 1)];
+    const pop = f.t < 10 ? 1.9 - (f.t / 10) * 0.9 + Math.sin((f.t / 10) * Math.PI) * 0.25 : 1;
+    const y = f.y - Math.max(0, f.t - 35) * f.cell * 0.012;
+    g.globalAlpha = f.t > 58 ? (75 - f.t) / 17 : 1;
+    const big = f.cell * (f.big.length > 1 ? 1.1 : 1.6) * pop;
+    gradientText(g, f.big, f.x, y, big, tone[0], tone[1], DISPLAY);
+    gradientText(g, f.small, f.x, y + big * 0.62, f.cell * 0.55, '#ffffff', tone[0], DISPLAY);
     g.globalAlpha = 1;
   }
 }

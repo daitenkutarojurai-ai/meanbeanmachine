@@ -9,7 +9,8 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "@fontsource/press-start-2p": "^5.3.0",
+    "@fontsource/lilita-one": "^5.3.0",
+    "@fontsource/nunito": "^5.3.0",
     "@mbm/engine": "*"
   },
   "devDependencies": {

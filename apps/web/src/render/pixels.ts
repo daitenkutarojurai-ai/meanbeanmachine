@@ -1,5 +1,8 @@
 export type Ctx = CanvasRenderingContext2D;
 
+/** Shape helpers draw with smooth vector paths; portraits scale them up for any size. */
+let outline = 1;
+
 export function makeCanvas(w: number, h: number): HTMLCanvasElement {
   const c = document.createElement('canvas');
   c.width = w;
@@ -8,38 +11,40 @@ export function makeCanvas(w: number, h: number): HTMLCanvasElement {
 }
 
 export function ctx2d(c: HTMLCanvasElement): Ctx {
-  const g = c.getContext('2d')!;
-  g.imageSmoothingEnabled = false;
-  return g;
+  return c.getContext('2d')!;
+}
+
+/** Rim thickness used by the *Outlined helpers, in drawing units. */
+export function setOutline(w: number): void {
+  outline = w;
 }
 
 export function rect(g: Ctx, x: number, y: number, w: number, h: number, color: string): void {
   g.fillStyle = color;
-  g.fillRect(Math.round(x), Math.round(y), Math.round(w), Math.round(h));
+  g.fillRect(x, y, w, h);
 }
 
-/** Pixel-exact filled ellipse (no anti-aliasing). */
 export function ellipse(g: Ctx, cx: number, cy: number, rx: number, ry: number, color: string): void {
   g.fillStyle = color;
-  for (let y = Math.floor(cy - ry); y <= Math.ceil(cy + ry); y++) {
-    const dy = (y + 0.5 - cy) / ry;
-    if (Math.abs(dy) > 1) continue;
-    const half = rx * Math.sqrt(1 - dy * dy);
-    const x0 = Math.round(cx - half);
-    const x1 = Math.round(cx + half);
-    if (x1 > x0) g.fillRect(x0, y, x1 - x0, 1);
-  }
+  g.beginPath();
+  g.ellipse(cx, cy, Math.max(0.1, rx), Math.max(0.1, ry), 0, 0, Math.PI * 2);
+  g.fill();
 }
 
-/** Ellipse with a 1px darker rim. */
 export function ellipseOutlined(g: Ctx, cx: number, cy: number, rx: number, ry: number, fill: string, rim: string): void {
-  ellipse(g, cx, cy, rx + 1, ry + 1, rim);
+  ellipse(g, cx, cy, rx + outline, ry + outline, rim);
   ellipse(g, cx, cy, rx, ry, fill);
 }
 
 export function rectOutlined(g: Ctx, x: number, y: number, w: number, h: number, fill: string, rim: string): void {
-  rect(g, x - 1, y - 1, w + 2, h + 2, rim);
-  rect(g, x, y, w, h, fill);
+  g.fillStyle = rim;
+  g.beginPath();
+  g.roundRect(x - outline, y - outline, w + outline * 2, h + outline * 2, Math.min(w, h) * 0.18 + outline);
+  g.fill();
+  g.fillStyle = fill;
+  g.beginPath();
+  g.roundRect(x, y, w, h, Math.min(w, h) * 0.18);
+  g.fill();
 }
 
 export function triangle(g: Ctx, ax: number, ay: number, bx: number, by: number, cx: number, cy: number, color: string): void {
@@ -53,22 +58,11 @@ export function triangle(g: Ctx, ax: number, ay: number, bx: number, by: number,
 }
 
 export function line(g: Ctx, x0: number, y0: number, x1: number, y1: number, color: string, w = 1): void {
-  const steps = Math.max(Math.abs(x1 - x0), Math.abs(y1 - y0), 1);
-  g.fillStyle = color;
-  for (let i = 0; i <= steps; i++) {
-    const t = i / steps;
-    g.fillRect(Math.round(x0 + (x1 - x0) * t - (w - 1) / 2), Math.round(y0 + (y1 - y0) * t - (w - 1) / 2), w, w);
-  }
-}
-
-export function hexToRgb(hex: string): [number, number, number] {
-  const n = parseInt(hex.slice(1), 16);
-  return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
-}
-
-export function mix(a: string, b: string, t: number): string {
-  const [ar, ag, ab] = hexToRgb(a);
-  const [br, bg, bb] = hexToRgb(b);
-  const c = (x: number, y: number): number => Math.round(x + (y - x) * t);
-  return `rgb(${c(ar, br)},${c(ag, bg)},${c(ab, bb)})`;
+  g.strokeStyle = color;
+  g.lineWidth = w;
+  g.lineCap = 'round';
+  g.beginPath();
+  g.moveTo(x0, y0);
+  g.lineTo(x1, y1);
+  g.stroke();
 }
