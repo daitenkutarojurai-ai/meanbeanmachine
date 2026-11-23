@@ -92,6 +92,9 @@ class OnlineBattle implements Session {
       case 'garbage':
         this.incoming.push(m.amount);
         break;
+      case 'resumed':
+        if (m.framesReceived !== null) this.recorder.resendFrom(m.framesReceived);
+        break;
       case 'pong':
         this.ping = Math.round(performance.now() - m.at);
         break;
@@ -229,7 +232,7 @@ class OnlineBattle implements Session {
       bg: rivalFace.stage,
       portrait: portrait(rivalFace, moodOf(this.remote.sim, this.local, this.happy[1])),
       panels,
-      info: [`WINS ${this.wins[me]}-${this.wins[1 - me]}`, `FIRST TO ${Math.floor(this.games / 2) + 1}`, this.ping ? `PING ${this.ping}MS` : ''],
+      info: [`WINS ${this.wins[me]}-${this.wins[1 - me]}`, `FIRST TO ${Math.floor(this.games / 2) + 1}`, net.reconnecting ? 'RECONNECTING...' : this.ping ? `PING ${this.ping}MS` : ''],
       banners,
       dim: this.state === 'matchEnd',
     });

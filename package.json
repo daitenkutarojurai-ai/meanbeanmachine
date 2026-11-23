@@ -12,11 +12,13 @@
     "dev": "npm run dev -w @mbm/web",
     "dev:server": "npm run dev -w @mbm/server",
     "build": "npm run build -w @mbm/web",
+    "bundle:api": "node scripts/bundle-api.mjs",
     "start": "npm run start -w @mbm/server",
     "test": "npm run test -w @mbm/engine && npm run test -w @mbm/server",
     "typecheck": "tsc -p packages/engine && tsc -p apps/web && tsc -p apps/server"
   },
   "devDependencies": {
+    "esbuild": "^0.28.2",
     "typescript": "^5.9.3"
   },
   "engines": {

@@ -254,9 +254,27 @@ describe('netplay', () => {
     expect(replay.sim.checksum()).toBe(local.checksum());
   });
 
-  it('rejects out-of-order batches', () => {
+  it('rejects gaps and ignores frames it already has', () => {
     const replay = new InputReplay(versusConfigs(1, [2, 2])[0]);
     expect(replay.push({ from: 3, inputs: [0], acks: [] })).toBe(false);
+    expect(replay.push({ from: 0, inputs: [0, 0, 0, 0], acks: [{ frame: 1, amount: 2 }] })).toBe(true);
+    expect(replay.push({ from: 0, inputs: [0, 0, 0, 0, 0, 0], acks: [{ frame: 1, amount: 2 }, { frame: 5, amount: 3 }] })).toBe(true);
+    expect(replay.received).toBe(6);
+    expect(replay.ackedTotal).toBe(5);
+  });
+
+  it('resends the same frames and credits after a reconnect', () => {
+    const rec = new InputRecorder();
+    for (let f = 0; f < 9; f++) {
+      if (f === 4) rec.ack(6);
+      rec.record(f % 3);
+    }
+    const first = rec.takeBatch()!;
+    rec.resendFrom(2);
+    const again = rec.takeBatch()!;
+    expect(again.from).toBe(2);
+    expect(again.inputs).toEqual(first.inputs.slice(2));
+    expect(again.acks).toEqual([{ frame: 4, amount: 6 }]);
   });
 });
 

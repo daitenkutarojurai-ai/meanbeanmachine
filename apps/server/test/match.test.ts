@@ -79,7 +79,6 @@ test('two clients play a full best-of-3 match through the server', () => {
   lobby.stop();
   const a = new BotClient('ALPHA', 'expert', clock);
   const b = new BotClient('BRAVO', 'rookie', clock);
-  for (const c of [a, b]) c.send({ t: 'hello', name: c.peer.name, v: 1 });
   a.send({ t: 'create', level: 2, games: 3 });
 
   let joined = false;

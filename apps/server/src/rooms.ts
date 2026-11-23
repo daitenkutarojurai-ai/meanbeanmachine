@@ -4,7 +4,6 @@ import {
   InputReplay,
   type LobbyPlayer,
   MAX_GAMES,
-  PROTOCOL_VERSION,
   type RoundReason,
   type ServerMessage,
   gamesToWin,
@@ -76,14 +75,6 @@ export class Lobby {
 
   handle(peer: Peer, msg: ClientMessage): void {
     switch (msg.t) {
-      case 'hello':
-        if (msg.v !== PROTOCOL_VERSION) {
-          peer.send({ t: 'error', message: 'Please refresh: the game was updated.' });
-          return;
-        }
-        peer.name = sanitizeName(msg.name);
-        peer.send({ t: 'welcome', id: peer.id });
-        return;
       case 'quick': {
         this.leave(peer);
         peer.level = clampLevel(msg.level);
@@ -142,6 +133,11 @@ export class Lobby {
     this.queue = this.queue.filter((p) => p !== peer);
     peer.room?.remove(peer, 'left the room');
   }
+
+  /** Frames of the current round the server holds for this player, for resends. */
+  framesReceived(peer: Peer): number | null {
+    return peer.room?.framesReceived(peer) ?? null;
+  }
 }
 
 export class Room {
@@ -161,6 +157,11 @@ export class Room {
     this.games = games;
     this.now = now;
     this.onEmpty = onEmpty;
+  }
+
+  framesReceived(peer: Peer): number | null {
+    const seat = this.seats.find((s) => s?.peer === peer);
+    return this.state === 'playing' && seat?.replay ? seat.replay.received : null;
   }
 
   get full(): boolean {
