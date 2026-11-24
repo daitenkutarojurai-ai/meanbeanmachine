@@ -1,6 +1,6 @@
 import type { App } from '../app.ts';
 import { audio } from '../audio.ts';
-import { BOSS_EVERY, bossOf, nextArena } from '../meta/arenas.ts';
+import { ARENAS, BOSS_EVERY, bossOf, nextArena } from '../meta/arenas.ts';
 import {
   arena,
   chestSkipCost,
@@ -21,6 +21,7 @@ import {
 } from '../meta/profile.ts';
 import { CHESTS, QUEST_POOL, TROPHY_ROAD, skinById } from '../meta/rewards.ts';
 import { type Hero, LINES, pick } from '../render/hero.ts';
+import { onInstallChange } from '../pwa.ts';
 import { drawStage } from '../render/stage.ts';
 import { settings, saveSettings } from '../storage.ts';
 import { openChestModal } from './chest.ts';
@@ -53,6 +54,7 @@ export class Home {
   private hero: Hero | null = null;
   private idleTimer = 0;
   private greeted = false;
+  private pendingInvite = '';
 
   constructor(app: App) {
     this.app = app;
@@ -62,12 +64,19 @@ export class Home {
     window.addEventListener('resize', () => this.paintBackdrop());
     this.render();
     setInterval(() => this.tick(), 1000);
+    onInstallChange(() => this.tab === 'profile' && this.render());
     if (!profile.name) this.askName();
     else audio.music('title');
   }
 
   show(): void {
     this.root.hidden = false;
+  }
+
+  /** Opened from a friend's invite link: join their room once we know your name. */
+  openInvite(code: string): void {
+    if (!profile.name) this.pendingInvite = code;
+    else this.flows.online({ join: code });
   }
 
   setTab(t: Tab): void {
@@ -318,36 +327,62 @@ export class Home {
     modal('Daily quests', [list, el('p', { class: 'center muted' }, `New quests in ${fmtTime(tomorrow.getTime() - Date.now())}`)]);
   }
 
+  /** Rewards and arena unlocks in trophy order, scrolled to where you are. */
   road(): void {
-    const list = el('div', { class: 'stack' });
+    const list = el('div', { class: 'road' });
+    const best = profile.bestTrophies;
     const render = (): void => {
-      list.replaceChildren(
-        ...TROPHY_ROAD.map((r, i) => {
-          const reached = profile.bestTrophies >= r.trophies;
-          const claimed = profile.roadClaimed.includes(i);
-          const what = r.skin ? `${skinById(r.skin).name}` : r.chest ? CHESTS[r.chest].name : r.gems ? `${r.gems} gems` : `${fmt(r.coins ?? 0)} coins`;
-          const icon = r.skin ? ICONS.cards : r.chest ? ICONS.star : r.gems ? ICONS.gem : ICONS.coin;
-          const action = claimed
-            ? el('span', { class: 'tag' }, '✓')
-            : reached
-              ? button('Claim', { cls: 'btn-green btn-sm', onClick: () => {
-                  const res = claimRoad(i);
-                  if (!res) return;
-                  if ('type' in res && r.chest) openChestModal(res, () => this.render());
-                  else {
-                    audio.sfx('levelUp');
-                    toast(r.skin ? `Unlocked ${skinById(r.skin).name}!` : `+${what}`);
-                  }
-                  render();
-                  this.render();
-                } })
-              : el('span', { class: 'tag' }, svg(ICONS.lock));
-          return el('div', { class: `card ${reached ? '' : 'dark'} row` }, el('span', { class: 'tag' }, svg(ICONS.trophy), fmt(r.trophies)), svg(icon), el('b', { class: 'grow' }, what), action);
-        }),
-      );
+      const stops: { t: number; node: HTMLElement }[] = [];
+      for (const a of ARENAS) {
+        if (a.trophies === 0) continue;
+        const open = best >= a.trophies;
+        stops.push({
+          t: a.trophies,
+          node: el('div', { class: `road-arena${open ? ' reached' : ''}`, style: `--a1:${a.colors[0]};--a2:${a.colors[1]}` }, svg(open ? ICONS.map : ICONS.lock), el('b', { class: 'outline' }, `Arena ${a.index + 1}: ${a.name}`), el('span', { class: 'tag' }, svg(ICONS.trophy), fmt(a.trophies))),
+        });
+      }
+      TROPHY_ROAD.forEach((r, i) => {
+        const reached = best >= r.trophies;
+        const claimed = profile.roadClaimed.includes(i);
+        const what = r.skin ? `${skinById(r.skin).name}` : r.chest ? CHESTS[r.chest].name : r.gems ? `${r.gems} gems` : `${fmt(r.coins ?? 0)} coins`;
+        let art: HTMLElement;
+        if (r.skin) {
+          const { canvas } = heroCanvas({ skin: r.skin, size: 56, scale: 0.62 });
+          art = el('div', { class: 'road-art' }, canvas);
+        } else if (r.chest) art = el('div', { class: 'road-art', html: chestSvg(r.chest) });
+        else art = el('div', { class: 'road-art' }, svg(r.gems ? ICONS.gem : ICONS.coin));
+        const action = claimed
+          ? el('span', { class: 'tag' }, '✓')
+          : reached
+            ? button('Claim', { cls: 'btn-green btn-sm', onClick: () => {
+                const res = claimRoad(i);
+                if (!res) return;
+                if ('type' in res && r.chest) openChestModal(res, () => this.render());
+                else {
+                  audio.sfx('levelUp');
+                  toast(r.skin ? `Unlocked ${skinById(r.skin).name}!` : `+${what}`);
+                }
+                render();
+                this.render();
+              } })
+            : el('span', { class: 'tag' }, svg(ICONS.lock));
+        stops.push({
+          t: r.trophies,
+          node: el('div', { class: `road-row${reached ? ' reached' : ''}${claimed ? ' claimed' : ''}` }, el('span', { class: 'road-pin outline' }, svg(ICONS.trophy), fmt(r.trophies)), art, el('b', { class: 'grow outline' }, what), action),
+        });
+      });
+      // Arena unlocks sort ahead of the rewards at the same count.
+      stops.sort((a, b) => a.t - b.t || Number(b.node.classList.contains('road-arena')) - Number(a.node.classList.contains('road-arena')));
+      const here = stops.findIndex((s) => s.t > best);
+      const marker = el('div', { class: 'road-here outline' }, svg(ICONS.trophy), `You: ${fmt(best)}`);
+      const nodes = stops.map((s) => s.node);
+      nodes.splice(here < 0 ? nodes.length : here, 0, marker);
+      list.replaceChildren(...nodes);
     };
     render();
-    modal('Trophy Road', [el('p', { class: 'center muted' }, `Best: ${fmt(profile.bestTrophies)} trophies`), list]);
+    const next = TROPHY_ROAD.find((r) => r.trophies > best);
+    modal('Trophy Road', [el('p', { class: 'center muted' }, next ? `Best: ${fmt(best)} trophies · next reward at ${fmt(next.trophies)}` : `Best: ${fmt(best)} trophies · road complete!`), list]);
+    requestAnimationFrame(() => (list.querySelector('.road-row.reached:not(.claimed)') ?? list.querySelector('.road-here'))?.scrollIntoView({ block: 'center' }));
   }
 
   private askName(): void {
@@ -369,6 +404,8 @@ export class Home {
         audio.music('title');
         this.greeted = false;
         this.render();
+        if (this.pendingInvite) this.flows.online({ join: this.pendingInvite });
+        this.pendingInvite = '';
       },
     });
     input.addEventListener('keydown', (e) => {

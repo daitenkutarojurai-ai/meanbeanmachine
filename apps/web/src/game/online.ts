@@ -10,10 +10,15 @@ import { LINES, pick } from '../render/hero.ts';
 import type { SceneKind } from '../render/stage.ts';
 import { saveSettings, settings } from '../storage.ts';
 import { ICONS, type ModalHandle, button, el, modal, svg, toast } from '../ui/components.ts';
+import { inviteUrl, shareLink } from '../ui/share.ts';
 import { HeroDirector, playEventSounds, trackFor } from './battle.ts';
 
 const FRAME_MS = 1000 / 60;
-const SCENES: SceneKind[] = ['meadow', 'junkyard', 'steam', 'disco', 'sea', 'city', 'mine', 'castle', 'lava', 'rooftop'];
+const SCENES: SceneKind[] = ['meadow', 'junkyard', 'steam', 'disco', 'sea', 'frost', 'city', 'mine', 'candy', 'castle', 'lava', 'rooftop'];
+/** Seconds of empty matchmaking before we offer a robot instead. */
+const LONELY_AFTER_MS = 10_000;
+
+export type OnlineStart = 'menu' | 'quick' | { join: string };
 
 interface Lobby {
   code: string;
@@ -240,17 +245,25 @@ export class OnlineFlow {
   private readonly skin: string;
   private readonly name: string;
   private readonly onDone: () => void;
+  private readonly playRobot: () => void;
+  private lonelyTimer = 0;
+  /** In a quick-match room (as opposed to a friend's room), and whether a match has finished there. */
+  private quick = false;
+  private played = false;
 
-  constructor(app: App, me: { name: string; skin: string }, onDone: () => void, start: 'menu' | 'quick' = 'menu') {
+  constructor(app: App, me: { name: string; skin: string }, onDone: () => void, playRobot: () => void, start: OnlineStart = 'menu') {
     this.app = app;
     this.skin = me.skin;
     this.name = me.name;
     this.onDone = onDone;
+    this.playRobot = playRobot;
     if (start === 'quick') void this.go({ t: 'quick', level: ONLINE_LEVEL });
+    else if (typeof start === 'object') this.join(start.join);
     else this.menu();
   }
 
   private closeUi(): void {
+    clearTimeout(this.lonelyTimer);
     const u = this.ui;
     this.ui = null;
     u?.close();
@@ -297,6 +310,8 @@ export class OnlineFlow {
   }
 
   private async go(msg: Parameters<typeof net.send>[0]): Promise<void> {
+    this.quick = msg.t === 'quick';
+    this.played = false;
     this.show('Connecting…', [el('p', { class: 'center' }, 'Finding the bean arena…')]);
     try {
       this.listen();
@@ -320,18 +335,31 @@ export class OnlineFlow {
 
   private onMessage(m: ServerMessage): void {
     switch (m.t) {
-      case 'queued':
-        this.show('Searching…', [
-          el('div', { class: 'center', style: 'font-size:56px;animation:spin 2s linear infinite;display:inline-block' }, '🫘'),
-          el('p', { class: 'center' }, 'Looking for an opponent'),
-          button('Cancel', { cls: 'btn-red', onClick: () => this.leave() }),
-        ]);
+      case 'queued': {
+        const spinner = el('div', { class: 'center', style: 'font-size:56px;animation:spin 2s linear infinite;display:inline-block' }, '🫘');
+        const robot = el('div', { class: 'stack', hidden: true },
+          el('p', { class: 'center muted' }, "Nobody's free right now. Battle a robot for trophies instead?"),
+          button('Battle a robot', { cls: 'btn-gold', icon: ICONS.swords, onClick: () => {
+            net.send({ t: 'leave' });
+            this.quit();
+            this.playRobot();
+          } }),
+        );
+        this.show('Searching…', [spinner, el('p', { class: 'center' }, 'Looking for an opponent'), robot, button('Cancel', { cls: 'btn-red', onClick: () => this.leave() })]);
+        this.lonelyTimer = window.setTimeout(() => {
+          robot.hidden = false;
+          audio.sfx('menu');
+        }, LONELY_AFTER_MS);
         break;
+      }
       case 'lobby':
         this.lobby = { code: m.code, you: m.you, names: m.players.map((p) => p.name) };
         this.games = m.games;
         this.wins = m.wins;
-        if (!this.battle) this.showLobby(m);
+        if (this.battle) break;
+        // A quick match starts by itself; its room only matters for a rematch with someone still there.
+        if (this.quick && (!this.played || !m.players[1 - m.you]?.connected)) break;
+        this.showLobby(m);
         break;
       case 'start':
         this.closeUi();
@@ -346,7 +374,16 @@ export class OnlineFlow {
       case 'left':
         this.app.leave();
         this.battle = null;
-        this.show('Opponent left', [el('p', { class: 'center' }, m.reason), button('OK', { cls: 'btn-blue', onClick: () => this.leave() })]);
+        if (this.quick) {
+          this.show('Opponent left', [
+            el('p', { class: 'center' }, m.reason),
+            button('Find another opponent', { cls: 'btn-gold', icon: ICONS.globe, onClick: () => {
+              net.send({ t: 'leave' });
+              void this.go({ t: 'quick', level: ONLINE_LEVEL });
+            } }),
+            button('Leave', { cls: 'btn-red', onClick: () => this.leave() }),
+          ]);
+        } else toast(m.reason);
         break;
       case 'error':
         this.menu(m.message);
@@ -357,6 +394,7 @@ export class OnlineFlow {
   private matchOver(iWon: boolean): void {
     const stats = this.battle?.stats ?? { score: 0, maxChain: 0, refugeesSent: 0, popped: 0 };
     const rewards = recordBattle({ won: iWon, ...stats, ranked: false });
+    this.played = true;
     const me = this.lobby?.you ?? 0;
     this.app.leave();
     this.battle = null;
@@ -379,7 +417,8 @@ export class OnlineFlow {
     };
     this.show('Room', [
       el('div', { class: 'center display outline', style: 'font-size:52px;letter-spacing:8px;color:#ffe36a' }, m.code),
-      el('p', { class: 'muted center' }, `Best of ${m.games} · share this code with a friend`),
+      el('p', { class: 'muted center' }, `Best of ${m.games} · send this code or the link to a friend`),
+      m.players[1 - m.you]?.connected ? '' : button('Invite a friend', { cls: 'btn-purple', icon: ICONS.people, onClick: () => void shareLink(`Battle me in Bean Machine! Room ${m.code}:`, inviteUrl(m.code)) }),
       el('div', { class: 'grid2' }, slot(0), slot(1)),
       meP?.ready ? el('p', { class: 'center' }, 'Waiting for your opponent…') : '',
       meP?.ready ? '' : button('Ready!', { cls: 'btn-green btn-xl', onClick: () => net.send({ t: 'ready' }) }),

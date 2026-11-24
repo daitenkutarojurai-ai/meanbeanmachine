@@ -42,12 +42,15 @@ export interface SkinDef {
 export const SKINS: SkinDef[] = [
   { id: 'classic', name: 'Classic Sprout', tagline: 'The one and only.', body: ['#8ef59a', '#3fc95a', '#167a34'], rarity: 'common' },
   { id: 'sunny', name: 'Sunny Sprout', tagline: 'Always looks on the bright side.', body: ['#fff28a', '#ffc928', '#b8700a'], rarity: 'common', price: { coins: 600 } },
+  { id: 'cozy', name: 'Cozy Sprout', tagline: 'Bobble hat on. Chains on.', body: ['#ffeccc', '#f2b878', '#9a6230'], rarity: 'common', price: { coins: 900 } },
   { id: 'frost', name: 'Frosty Sprout', tagline: 'Cool under pressure. Literally.', body: ['#d8f6ff', '#7fd4ff', '#2a78b8'], rarity: 'rare', price: { coins: 1500 } },
   { id: 'ninja', name: 'Ninja Sprout', tagline: 'Silent. Swift. Slightly squishy.', body: ['#6a7cff', '#3442c8', '#141c6a'], rarity: 'rare', price: { coins: 2200 } },
   { id: 'pirate', name: 'Captain Sprout', tagline: 'Sails the seven seas of beans.', body: ['#ff8a7a', '#e2423a', '#821a1a'], rarity: 'epic', price: { gems: 120 } },
   { id: 'astro', name: 'Astro Sprout', tagline: 'One small hop for a bean.', body: ['#f2f4ff', '#c4cae6', '#6a7290'], rarity: 'epic', price: { gems: 160 } },
+  { id: 'candy', name: 'Candy Sprout', tagline: 'Sweet face, sour combos.', body: ['#ffd6ee', '#ff7ac4', '#a8286a'], rarity: 'epic', price: { gems: 200 } },
   { id: 'lava', name: 'Blaze Sprout', tagline: 'Too hot to roast.', body: ['#ffd06a', '#ff6a2a', '#9a1a0a'], rarity: 'legendary', price: { gems: 300 } },
   { id: 'royal', name: 'King Sprout', tagline: 'Ruler of Beanbury.', body: ['#e2a8ff', '#a454f0', '#4a1a8a'], rarity: 'legendary', price: { gems: 400 } },
+  { id: 'robo', name: 'Robo Sprout', tagline: 'Grimgear built him. Sprout rewired him.', body: ['#eef4fa', '#a4b4c6', '#4a5a6e'], rarity: 'legendary', price: { gems: 450 } },
 ];
 
 export const skinById = (id: string): SkinDef => SKINS.find((s) => s.id === id) ?? SKINS[0];
@@ -83,6 +86,11 @@ export const TROPHY_ROAD: RoadReward[] = [
   { trophies: 4000, chest: 'legend' },
   { trophies: 4300, skin: 'pirate' },
   { trophies: 4600, skin: 'royal' },
+  { trophies: 4900, gems: 100 },
+  { trophies: 5000, skin: 'candy' },
+  { trophies: 5300, chest: 'legend' },
+  { trophies: 5600, coins: 3000 },
+  { trophies: 6000, skin: 'robo' },
 ];
 
 export type QuestKind = 'win' | 'play' | 'chain' | 'send' | 'pop' | 'score' | 'boss';

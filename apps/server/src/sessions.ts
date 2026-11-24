@@ -73,6 +73,7 @@ export class Sessions {
         const s = session;
         if (!s || s.socket !== socket) return;
         s.socket = null;
+        this.lobby.offline(s.peer);
         s.grace = setTimeout(() => this.drop(s), RESUME_GRACE_MS);
       },
     };
@@ -105,6 +106,7 @@ export class Sessions {
       reply({ t: 'resumed', framesReceived: this.lobby.framesReceived(s.peer) });
       const lastSeq = Number(msg.lastSeq) || 0;
       for (const e of s.log) if (e.seq > lastSeq) socket.send(e.data);
+      this.lobby.online(s.peer);
       return s;
     }
     return null;

@@ -4,6 +4,7 @@ import { ARENAS, BOSS_EVERY, bossOf } from '../meta/arenas.ts';
 import { arena, buy, buySkin, canAfford, equipSkin, levelInfo, profile, save } from '../meta/profile.ts';
 import { CHESTS, SKINS, dailyOffers, skinById } from '../meta/rewards.ts';
 import { Hero, LINES, pick } from '../render/hero.ts';
+import { canPromptInstall, isInstalled, isIos, promptInstall } from '../pwa.ts';
 import { drawStage } from '../render/stage.ts';
 import { saveSettings, settings } from '../storage.ts';
 import { openChestModal } from './chest.ts';
@@ -213,8 +214,22 @@ export function profileTab(home: Home): HTMLElement {
     ),
     el('div', { class: 'grid2' }, button('Trophy Road', { cls: 'btn-gold', icon: ICONS.road, onClick: () => home.road() }), button('Quests', { cls: 'btn-blue', icon: ICONS.scroll, onClick: () => home.quests() })),
     button('How to play', { cls: 'btn-blue', onClick: () => howTo() }),
+    installCard(home),
     el('p', { class: 'center muted', style: 'font-size:12px' }, 'Classic 1993 falling-bean rules, new cast. A fan project; no SEGA assets.'),
   );
+}
+
+/** Put the game on the home screen: one tap where the browser allows it, instructions on iOS. */
+function installCard(home: Home): HTMLElement | string {
+  if (isInstalled()) return '';
+  if (canPromptInstall()) {
+    return button('Install the app', { cls: 'btn-green', icon: ICONS.play, onClick: () => void promptInstall().then((ok) => {
+      if (ok) toast('Installed! Find Bean Machine on your home screen');
+      home.render();
+    }) });
+  }
+  if (isIos()) return el('div', { class: 'card dark center', style: 'font-size:14px' }, 'Play full screen: tap Share, then “Add to Home Screen”.');
+  return '';
 }
 
 export function howTo(): void {

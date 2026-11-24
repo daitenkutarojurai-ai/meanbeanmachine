@@ -440,7 +440,10 @@ export class Hero {
       g.arc(bx + W * 0.32, top - S * 0.15, S * 0.03, 0, Math.PI * 2);
       g.fill();
     }
-    if (id !== 'pirate' && id !== 'royal') this.sprout(g, bx, top + S * 0.02, S);
+    if (id === 'candy') this.candy(g, bx, by, W, H, S);
+    if (id === 'robo') this.robo(g, bx, by, W, H, S);
+    if (id === 'cozy') this.beanie(g, bx, by, W, H, S);
+    if (id !== 'pirate' && id !== 'royal' && id !== 'candy' && id !== 'robo' && id !== 'cozy') this.sprout(g, bx, top + S * 0.02, S);
     if (id === 'pirate') {
       this.sprout(g, bx, top - S * 0.02, S * 0.8);
       g.fillStyle = '#3a2418';
@@ -533,11 +536,172 @@ export class Hero {
     }
   }
 
+  /** Candy Sprout: sprinkles all over and a swirly lollipop where the leaf would be. */
+  private candy(g: CanvasRenderingContext2D, bx: number, by: number, W: number, H: number, S: number): void {
+    const sprinkles: [number, number, number, string][] = [
+      [-0.3, 0.12, 0.6, '#ffffff'], [0.28, 0.1, -0.4, '#7ae0ff'], [-0.12, 0.3, 1.2, '#ffe14a'],
+      [0.16, 0.32, 0.3, '#ffffff'], [-0.34, -0.3, -0.9, '#7ae0ff'], [0.33, -0.28, 0.8, '#ffe14a'], [0.02, -0.4, 0.1, '#ffffff'],
+    ];
+    for (const [dx, dy, rot, col] of sprinkles) {
+      g.save();
+      g.translate(bx + dx * W, by + dy * H);
+      g.rotate(rot);
+      g.fillStyle = col;
+      g.beginPath();
+      g.roundRect(-S * 0.025, -S * 0.009, S * 0.05, S * 0.018, S * 0.009);
+      g.fill();
+      g.restore();
+    }
+    const top = by - H / 2;
+    g.save();
+    g.translate(bx + S * 0.02, top + S * 0.02);
+    g.rotate(this.leaf * 0.6 + 0.12);
+    g.strokeStyle = '#f4f0f8';
+    g.lineWidth = S * 0.024;
+    g.lineCap = 'round';
+    g.beginPath();
+    g.moveTo(0, 0);
+    g.lineTo(0, -S * 0.15);
+    g.stroke();
+    const r = S * 0.085;
+    g.translate(0, -S * 0.15 - r * 0.8);
+    g.fillStyle = '#ffffff';
+    g.beginPath();
+    g.arc(0, 0, r, 0, Math.PI * 2);
+    g.fill();
+    g.rotate(this.t * 1.5);
+    g.strokeStyle = '#ff4aa0';
+    g.lineWidth = r * 0.28;
+    g.beginPath();
+    for (let a = 0; a < Math.PI * 5; a += 0.2) {
+      const rr = (a / (Math.PI * 5)) * r * 0.85;
+      if (a === 0) g.moveTo(0, 0);
+      else g.lineTo(Math.cos(a) * rr, Math.sin(a) * rr);
+    }
+    g.stroke();
+    g.rotate(-this.t * 1.5);
+    g.strokeStyle = '#a8286a';
+    g.lineWidth = S * 0.012;
+    g.beginPath();
+    g.arc(0, 0, r, 0, Math.PI * 2);
+    g.stroke();
+    g.restore();
+  }
+
+  /** Robo Sprout: one of Grimgear's robots that switched sides. */
+  private robo(g: CanvasRenderingContext2D, bx: number, by: number, W: number, H: number, S: number): void {
+    const top = by - H / 2;
+    // Panel seam and rivets.
+    g.strokeStyle = 'rgba(40,52,70,0.45)';
+    g.lineWidth = S * 0.012;
+    g.beginPath();
+    g.moveTo(bx - W * 0.4, by - H * 0.3);
+    g.quadraticCurveTo(bx, by - H * 0.38, bx + W * 0.4, by - H * 0.3);
+    g.stroke();
+    for (const k of [-0.24, 0, 0.24]) {
+      g.fillStyle = '#c8d4e4';
+      g.beginPath();
+      g.arc(bx + k * W, by - H * 0.34 - (k === 0 ? S * 0.012 : 0), S * 0.013, 0, Math.PI * 2);
+      g.fill();
+    }
+    // Bolts on the sides.
+    for (const s of [-1, 1]) {
+      g.fillStyle = '#5a6a80';
+      g.strokeStyle = '#2a3444';
+      g.lineWidth = S * 0.012;
+      g.beginPath();
+      g.roundRect(bx + s * W * 0.5 - S * 0.03, by - H * 0.12, S * 0.06, S * 0.09, S * 0.015);
+      g.fill();
+      g.stroke();
+    }
+    // Chest screen with a beating heart: proof he's on our side now.
+    const pw = W * 0.42;
+    const ph = H * 0.19;
+    const py = by + H * 0.26;
+    g.fillStyle = '#16222e';
+    g.strokeStyle = '#3a4a5e';
+    g.lineWidth = S * 0.014;
+    g.beginPath();
+    g.roundRect(bx - pw / 2, py - ph / 2, pw, ph, S * 0.03);
+    g.fill();
+    g.stroke();
+    const beat = 1 + Math.max(0, Math.sin(this.t * 6)) ** 4 * 0.25;
+    const hs = S * 0.032 * beat;
+    g.save();
+    g.translate(bx, py + hs * 0.1);
+    g.fillStyle = '#ff5a8a';
+    g.shadowColor = '#ff5a8a';
+    g.shadowBlur = S * 0.05;
+    g.beginPath();
+    g.moveTo(0, hs * 0.9);
+    g.bezierCurveTo(-hs * 1.6, -hs * 0.2, -hs * 0.7, -hs * 1.3, 0, -hs * 0.45);
+    g.bezierCurveTo(hs * 0.7, -hs * 1.3, hs * 1.6, -hs * 0.2, 0, hs * 0.9);
+    g.fill();
+    g.restore();
+    // Antenna with a blinking bulb, wobbling like a leaf.
+    g.save();
+    g.translate(bx, top + S * 0.01);
+    g.rotate(this.leaf * 0.8);
+    g.strokeStyle = '#3a4658';
+    g.lineWidth = S * 0.022;
+    g.lineCap = 'round';
+    g.beginPath();
+    g.moveTo(0, 0);
+    g.lineTo(0, -S * 0.15);
+    g.stroke();
+    const on = Math.floor(this.t * 2.5) % 2 === 0;
+    g.fillStyle = on ? '#4affb0' : '#1a9a6a';
+    g.shadowColor = '#4affb0';
+    g.shadowBlur = on ? S * 0.08 : 0;
+    g.beginPath();
+    g.arc(0, -S * 0.17, S * 0.04, 0, Math.PI * 2);
+    g.fill();
+    g.restore();
+  }
+
+  /** Cozy Sprout: a knitted bobble hat for cold days. */
+  private beanie(g: CanvasRenderingContext2D, bx: number, by: number, W: number, H: number, S: number): void {
+    const top = by - H / 2;
+    const band = by - H * 0.3;
+    g.fillStyle = '#e8343e';
+    g.strokeStyle = '#8a1420';
+    g.lineWidth = S * 0.016;
+    g.beginPath();
+    g.moveTo(bx - W * 0.46, band);
+    g.bezierCurveTo(bx - W * 0.46, top - S * 0.06, bx + W * 0.46, top - S * 0.06, bx + W * 0.46, band);
+    g.closePath();
+    g.fill();
+    g.stroke();
+    // Knit ribs.
+    g.strokeStyle = 'rgba(120,10,24,0.35)';
+    g.lineWidth = S * 0.01;
+    for (const k of [-0.24, 0, 0.24]) {
+      g.beginPath();
+      g.moveTo(bx + k * W, band);
+      g.quadraticCurveTo(bx + k * W * 0.7, top + S * 0.02, bx + k * W * 0.3, top - S * 0.02);
+      g.stroke();
+    }
+    g.fillStyle = '#f8f4ec';
+    g.strokeStyle = '#b8b0a0';
+    g.lineWidth = S * 0.012;
+    g.beginPath();
+    g.roundRect(bx - W * 0.5, band - S * 0.05, W, S * 0.09, S * 0.04);
+    g.fill();
+    g.stroke();
+    // Pompom bounces a little behind the hop.
+    const bob = Math.sin(this.t * 4) * S * 0.008 - this.y * S * 0.04;
+    g.fillStyle = '#ffffff';
+    g.beginPath();
+    g.arc(bx + this.leaf * S * 0.2, top - S * 0.06 + bob, S * 0.065, 0, Math.PI * 2);
+    g.fill();
+    g.stroke();
+  }
+
   private neckwear(g: CanvasRenderingContext2D, bx: number, by: number, W: number, H: number, S: number): void {
     const id = this.skin.id;
-    if (id !== 'classic' && id !== 'frost') return;
-    const col = id === 'classic' ? '#ff4a4a' : '#f4fbff';
-    const shade = id === 'classic' ? '#b81e2a' : '#9ad0ef';
+    if (id !== 'classic' && id !== 'frost' && id !== 'cozy') return;
+    const col = id === 'classic' ? '#ff4a4a' : id === 'cozy' ? '#3fae5a' : '#f4fbff';
+    const shade = id === 'classic' ? '#b81e2a' : id === 'cozy' ? '#1f7a3a' : '#9ad0ef';
     const ny = by + H * 0.22;
     g.fillStyle = col;
     g.strokeStyle = shade;

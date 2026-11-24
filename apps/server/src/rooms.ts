@@ -29,6 +29,8 @@ export interface Peer {
   name: string;
   level: number;
   room: Room | null;
+  /** Was searching for a quick match when its connection dropped. */
+  wasQueued?: boolean;
   send(msg: ServerMessage): void;
 }
 
@@ -132,6 +134,20 @@ export class Lobby {
   leave(peer: Peer): void {
     this.queue = this.queue.filter((p) => p !== peer);
     peer.room?.remove(peer, 'left the room');
+  }
+
+  /** A dropped connection can't play: keep it out of matchmaking until it comes back. */
+  offline(peer: Peer): void {
+    const before = this.queue.length;
+    this.queue = this.queue.filter((p) => p !== peer);
+    if (this.queue.length < before) peer.wasQueued = true;
+  }
+
+  /** Back from a dropped connection: carry on searching if it was. */
+  online(peer: Peer): void {
+    if (!peer.wasQueued) return;
+    peer.wasQueued = false;
+    this.handle(peer, { t: 'quick', level: peer.level });
   }
 
   /** Frames of the current round the server holds for this player, for resends. */

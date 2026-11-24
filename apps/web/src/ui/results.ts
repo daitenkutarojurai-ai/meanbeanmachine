@@ -4,6 +4,7 @@ import { type BattleRewards, levelInfo, profile } from '../meta/profile.ts';
 import { CHESTS, QUEST_POOL } from '../meta/rewards.ts';
 import { LINES, pick } from '../render/hero.ts';
 import { ICONS, button, chestSvg, countUp, el, fmt, heroCanvas, modal, svg } from './components.ts';
+import { homeUrl, shareLink } from './share.ts';
 
 /** After a ranked battle: the verdict, trophies, coins, XP and any chest won. */
 export function showResults(outcome: BattleOutcome, rewards: BattleRewards, opponent: string, onDone: () => void): void {
@@ -33,7 +34,15 @@ export function showResults(outcome: BattleOutcome, rewards: BattleRewards, oppo
   if (rewards.levelUp) rows.push(el('p', { class: 'center display outline', style: 'font-size:24px;color:#9af0ff' }, `Level up! You're level ${rewards.levelUp}`));
   if (rewards.newArena) rows.push(el('p', { class: 'center display outline', style: 'font-size:24px;color:#ffe36a' }, `New arena unlocked: ${rewards.newArena.name}!`));
   for (const q of rewards.questsDone) rows.push(el('p', { class: 'center', style: 'color:#7ef08a' }, `Quest complete: ${QUEST_POOL.find((x) => x.id === q)?.text}`));
-  rows.push(button('OK', { cls: 'btn-gold btn-xl', onClick: () => m.close() }));
+  const ok = button('OK', { cls: 'btn-gold btn-xl grow', onClick: () => m.close() });
+  if (won) {
+    const brag = rewards.boss ? `I just beat the boss ${opponent}` : `I just beat ${opponent}`;
+    const chain = outcome.stats.maxChain >= 2 ? ` with a ${outcome.stats.maxChain}-chain` : '';
+    const share = button('', { cls: 'btn-blue btn-icon', icon: ICONS.share, onClick: () => void shareLink(`${brag}${chain} in Bean Machine! 🫘 Can you beat my ${fmt(profile.trophies)} trophies?`, homeUrl()) });
+    share.setAttribute('aria-label', 'Share');
+    share.style.cssText = 'width:72px;height:72px;border-radius:20px;flex:none';
+    rows.push(el('div', { class: 'row' }, ok, share));
+  } else rows.push(ok);
   const m = modal('', rows, { onClose: onDone, closable: false });
   setTimeout(() => {
     countUp(trophyNum, profile.trophies - rewards.trophies, profile.trophies, 1000);

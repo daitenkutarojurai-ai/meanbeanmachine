@@ -4809,6 +4809,18 @@ var Lobby = class {
     this.queue = this.queue.filter((p) => p !== peer);
     peer.room?.remove(peer, "left the room");
   }
+  /** A dropped connection can't play: keep it out of matchmaking until it comes back. */
+  offline(peer) {
+    const before = this.queue.length;
+    this.queue = this.queue.filter((p) => p !== peer);
+    if (this.queue.length < before) peer.wasQueued = true;
+  }
+  /** Back from a dropped connection: carry on searching if it was. */
+  online(peer) {
+    if (!peer.wasQueued) return;
+    peer.wasQueued = false;
+    this.handle(peer, { t: "quick", level: peer.level });
+  }
   /** Frames of the current round the server holds for this player, for resends. */
   framesReceived(peer) {
     return peer.room?.framesReceived(peer) ?? null;
@@ -5052,6 +5064,7 @@ var Sessions = class {
         const s = session;
         if (!s || s.socket !== socket) return;
         s.socket = null;
+        this.lobby.offline(s.peer);
         s.grace = setTimeout(() => this.drop(s), RESUME_GRACE_MS);
       }
     };
@@ -5083,6 +5096,7 @@ var Sessions = class {
       reply({ t: "resumed", framesReceived: this.lobby.framesReceived(s.peer) });
       const lastSeq = Number(msg.lastSeq) || 0;
       for (const e of s.log) if (e.seq > lastSeq) socket.send(e.data);
+      this.lobby.online(s.peer);
       return s;
     }
     return null;

@@ -82,9 +82,7 @@ h3 {
   background: #0a1030;
 }
 
-#game[hidden],
-#ui[hidden],
-#touch[hidden] {
+[hidden] {
   display: none !important;
 }
 
@@ -925,6 +923,121 @@ h3 {
   padding: 2px 12px 10px;
   color: var(--muted);
   font-size: 12px;
+}
+
+/* ------------------------------------------------------------ trophy road */
+
+.road {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.road-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 10px;
+  border-radius: 16px;
+  border: 3px solid var(--ink);
+  background: rgba(10, 14, 48, 0.6);
+}
+
+.road-row.reached {
+  background: linear-gradient(#5a8aff, #2f50d8);
+}
+
+.road-row.claimed {
+  opacity: 0.55;
+}
+
+.road-row b {
+  font-family: var(--display);
+  font-weight: 400;
+  font-size: 16px;
+  min-width: 0;
+}
+
+.road-pin {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-family: var(--display);
+  font-size: 14px;
+  min-width: 64px;
+}
+
+.road-pin svg {
+  width: 18px;
+  height: 18px;
+}
+
+.road-art {
+  width: 52px;
+  height: 52px;
+  flex: none;
+  display: grid;
+  place-items: center;
+}
+
+.road-art > span svg {
+  width: 40px;
+  height: 40px;
+}
+
+.road-art > svg {
+  width: 50px;
+  height: auto;
+}
+
+.road-art canvas {
+  width: 56px;
+  height: 56px;
+}
+
+.road-arena {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  border-radius: 16px;
+  border: 3px solid var(--ink);
+  background: linear-gradient(135deg, var(--a1), var(--a2));
+  box-shadow: 0 4px 0 var(--ink);
+}
+
+.road-arena:not(.reached) {
+  filter: saturate(0.5) brightness(0.75);
+}
+
+.road-arena svg {
+  width: 26px;
+  height: 26px;
+}
+
+.road-arena b {
+  flex: 1;
+  font-family: var(--display);
+  font-weight: 400;
+  font-size: 17px;
+}
+
+.road-here {
+  align-self: center;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 14px;
+  border-radius: 12px;
+  background: var(--gold);
+  color: var(--ink);
+  font-family: var(--display);
+  border: 3px solid var(--ink);
+}
+
+.road-here svg {
+  width: 20px;
+  height: 20px;
 }
 
 .boss-hint {

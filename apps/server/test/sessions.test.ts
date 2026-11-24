@@ -65,6 +65,29 @@ test('a dropped player resumes its seat and receives what it missed', () => {
   assert.equal(b.socket.last('roundOver'), undefined, 'no desync forfeit');
 });
 
+test('a player who drops while searching is never matched until they come back', () => {
+  const lobby = new Lobby();
+  lobby.stop();
+  const sessions = new Sessions(lobby);
+  const ghost = join(sessions, 'ghost');
+  ghost.h.message(JSON.stringify({ t: 'quick', level: 1 }));
+  assert.ok(ghost.socket.last('queued'));
+  ghost.socket.readyState = 3;
+  ghost.h.close();
+
+  // Someone new searches during the ghost's grace period: they wait instead of meeting it.
+  const real = join(sessions, 'real');
+  real.h.message(JSON.stringify({ t: 'quick', level: 1 }));
+  assert.ok(real.socket.last('queued'), 'still searching');
+  assert.equal(real.socket.last('start'), undefined, 'not matched with a dropped player');
+
+  // The ghost reconnects and goes back to searching, so the two meet.
+  const again = new FakeSocket();
+  sessions.connect(again).message(JSON.stringify({ t: 'resume', id: ghost.welcome.id, token: ghost.welcome.token, lastSeq: 0, v: PROTOCOL_VERSION }));
+  assert.ok(again.last('start'), 'resumed player is matched');
+  assert.ok(real.socket.last('start'), 'waiting player is matched');
+});
+
 test('a wrong token cannot take over a session', () => {
   const lobby = new Lobby();
   lobby.stop();

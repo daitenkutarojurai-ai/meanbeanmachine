@@ -3,7 +3,7 @@ import { audio } from '../audio.ts';
 import { type BattleOutcome, BattleSession } from '../game/battle.ts';
 import { CAST, type Character } from '../game/characters.ts';
 import { ExerciseSession } from '../game/exercise.ts';
-import { OnlineFlow } from '../game/online.ts';
+import { OnlineFlow, type OnlineStart } from '../game/online.ts';
 import { BOSS_EVERY, aiForSkill, bossOf, nextArena } from '../meta/arenas.ts';
 import { arena, profile, recordBattle } from '../meta/profile.ts';
 import { button, el, modal, toast } from './components.ts';
@@ -151,8 +151,8 @@ export class Flows {
     );
   }
 
-  online(start: 'menu' | 'quick' = 'menu'): void {
-    new OnlineFlow(this.app, this.me(), () => this.back(), start);
+  online(start: OnlineStart = 'menu'): void {
+    new OnlineFlow(this.app, this.me(), () => this.back(), () => this.ranked(), start);
   }
 
   /** Attract mode: two robots play while the menu sits idle. */
