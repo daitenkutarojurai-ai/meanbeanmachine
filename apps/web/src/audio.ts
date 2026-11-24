@@ -19,7 +19,9 @@ export type Sfx =
   | 'levelUp'
   | 'allClear'
   | 'tick'
-  | 'heartbeat';
+  | 'heartbeat'
+  | 'coin'
+  | 'chest';
 
 export type Track = 'title' | 'battle' | 'battle2' | 'battle3' | 'danger' | 'boss' | 'story' | null;
 export type Speaker = 'hero' | 'robot' | 'rival';
@@ -52,11 +54,16 @@ export function scheduleStep(synth: Synth, c: CompiledSong, step: number, t: num
     if (d.includes('s')) synth.snare(bus, t, v * 0.8);
     if (d.includes('h')) synth.hat(bus, t, v * 0.22);
     if (d.includes('o')) synth.hat(bus, t, v * 0.25, true);
-    if (d.includes('c')) synth.crash(bus, t, v * 0.25);
+    if (d.includes('c')) synth.crash(bus, t, v * 0.2);
+    if (d.includes('x')) synth.shaker(bus, t, v * 0.14);
+    if (d.includes('r')) synth.rim(bus, t, v * 0.35);
   }
 }
 
-const POP_SCALE = [0, 2, 4, 5, 7, 9, 11, 12, 14, 16, 17, 19];
+/** Major pentatonic: every chain step lands on a note that sounds good after the last. */
+const POP_SCALE = [0, 2, 4, 7, 9, 12, 14, 16, 19, 21, 24, 26];
+const MALLET = { ratio: 4, index: 1.6, indexEnd: 0.06, indexTime: 0.05, attack: 0.002, decay: 0.28, sustain: 0.04, release: 0.2 };
+const GLASS = { ratio: 3.5, index: 1.4, indexEnd: 0.1, indexTime: 0.3, attack: 0.002, decay: 0.5, sustain: 0.1, release: 0.4 };
 
 export class AudioEngine {
   private ctx: AudioContext | null = null;
@@ -91,7 +98,7 @@ export class AudioEngine {
   private applyVolumes(): void {
     if (!this.synth) return;
     this.synth.sfx.gain.value = this.sfxVol;
-    this.synth.music.gain.value = this.musicVol * 0.85;
+    this.synth.music.gain.value = this.musicVol * 0.6;
   }
 
   music(track: Track): void {
@@ -147,68 +154,84 @@ export class AudioEngine {
     const bus = s.sfx;
     switch (name) {
       case 'move':
-        s.sweep(0.125, bus, t, 1500, 1300, 0.025, 0.035);
+        s.sweep('sine', bus, t, 950, 820, 0.03, 0.035);
         break;
       case 'rotate':
-        s.sweep(0.25, bus, t, 700, 1400, 0.055, 0.04);
+        s.sweep('triangle', bus, t, 520, 980, 0.055, 0.05);
+        s.sweep('sine', bus, t + 0.01, 1900, 2300, 0.03, 0.012);
         break;
       case 'land':
-        s.sweep('sine', bus, t, 230, 70, 0.1, 0.2);
-        s.noiseHit(bus, t, 0.04, 0.05, 'lowpass', 500);
+        s.fm(MALLET, bus, t, 196, 0.06, 0.09);
+        s.sweep('sine', bus, t, 160, 80, 0.07, 0.1);
+        s.noiseHit(bus, t, 0.025, 0.025, 'lowpass', 900);
         break;
       case 'pop': {
-        const f = 523 * 2 ** (POP_SCALE[Math.min(arg - 1, POP_SCALE.length - 1)] / 12);
-        s.fm({ ratio: 2, index: 4, indexEnd: 0.4, indexTime: 0.15, attack: 0.002, decay: 0.18, sustain: 0.15, release: 0.12 }, bus, t, f, 0.12, 0.16, true);
-        s.sweep('sine', bus, t, f * 0.5, f * 1.6, 0.09, 0.12);
-        s.noiseHit(bus, t, 0.12, 0.08, 'highpass', 5000);
+        // A rubbery bloop on a rising pentatonic ladder, with more sparkle per chain step.
+        const step = Math.max(0, arg - 1);
+        const f = 523 * 2 ** (POP_SCALE[Math.min(step, POP_SCALE.length - 1)] / 12);
+        s.sweep('sine', bus, t, f * 0.55, f * 1.05, 0.08, 0.16);
+        s.fm(MALLET, bus, t + 0.015, f, 0.1, 0.13, true);
+        s.sweep('sine', bus, t + 0.03, f * 2, f * 2.01, 0.14, 0.035, true);
+        s.noiseHit(bus, t, 0.035, 0.03, 'bandpass', 3000, 2);
+        if (step >= 2) s.fm(GLASS, bus, t + 0.05, f * 1.5, 0.12, 0.06, true);
+        if (step >= 4) [0, 4, 7].forEach((k, i) => s.fm(GLASS, bus, t + 0.08 + i * 0.05, f * 2 * 2 ** (k / 12), 0.1, 0.04, true));
         break;
       }
       case 'garbageSend':
-        s.noiseHit(bus, t, 0.4, 0.14, 'bandpass', 300, 1.2, 3500);
-        [0, 4, 7, 12].forEach((k, i) => s.sweep(0.25, bus, t + i * 0.035, 880 * 2 ** (k / 12), 880 * 2 ** (k / 12), 0.06, 0.03, true));
-        s.sweep(0.5, bus, t + 0.45, 990, 990, 0.07, 0.035);
-        s.sweep(0.5, bus, t + 0.56, 990, 990, 0.07, 0.035);
+        s.noiseHit(bus, t, 0.35, 0.06, 'bandpass', 400, 1.4, 3200);
+        [0, 4, 7, 12].forEach((k, i) => s.fm(MALLET, bus, t + i * 0.045, 784 * 2 ** (k / 12), 0.08, 0.07, true));
         break;
       case 'garbageDrop': {
-        const n = Math.min(5, 2 + Math.floor(arg / 8));
+        const n = Math.min(4, 1 + Math.floor(arg / 8));
         for (let i = 0; i < n; i++) {
-          s.sweep('sine', bus, t + i * 0.07, 130 - i * 8, 38, 0.2, 0.28);
-          s.noiseHit(bus, t + i * 0.07, 0.12, 0.1, 'lowpass', 420);
+          s.sweep('sine', bus, t + i * 0.08, 120 - i * 10, 50, 0.16, 0.15);
+          s.noiseHit(bus, t + i * 0.08, 0.06, 0.04, 'lowpass', 600);
         }
         break;
       }
       case 'menu':
-        s.sweep(0.25, bus, t, 1250, 1250, 0.03, 0.03);
+        s.fm(MALLET, bus, t, 1046, 0.04, 0.05);
         break;
       case 'select':
-        s.sweep(0.25, bus, t, 880, 880, 0.05, 0.035);
-        s.sweep(0.25, bus, t + 0.05, 1760, 1760, 0.08, 0.035, true);
+        s.fm(MALLET, bus, t, 784, 0.05, 0.07);
+        s.fm(MALLET, bus, t + 0.06, 1175, 0.08, 0.06, true);
         break;
       case 'back':
-        s.sweep(0.25, bus, t, 900, 500, 0.08, 0.035);
+        s.fm(MALLET, bus, t, 880, 0.05, 0.06);
+        s.fm(MALLET, bus, t + 0.06, 587, 0.08, 0.05);
         break;
       case 'ready':
-        s.fm({ ratio: 1, index: 1, indexEnd: 3, indexTime: 0.05, attack: 0.01, decay: 0.15, sustain: 0.6, release: 0.1, chorus: 7 }, bus, t, 392, 0.18, 0.12);
-        s.fm({ ratio: 1, index: 1, indexEnd: 3, indexTime: 0.05, attack: 0.01, decay: 0.15, sustain: 0.6, release: 0.1, chorus: 7 }, bus, t, 494, 0.18, 0.09);
+        s.fm(GLASS, bus, t, 659, 0.2, 0.08, true);
+        s.fm(GLASS, bus, t + 0.12, 784, 0.2, 0.07, true);
         break;
       case 'go':
-        for (const f of [523, 659, 784, 1047]) s.fm({ ratio: 1, index: 1, indexEnd: 3.5, indexTime: 0.05, attack: 0.01, decay: 0.2, sustain: 0.6, release: 0.2, chorus: 7 }, bus, t, f, 0.3, 0.08, true);
-        s.crash(bus, t, 0.08);
+        [523, 659, 784, 1047].forEach((f, i) => s.fm(MALLET, bus, t + i * 0.035, f, 0.15, 0.08, true));
+        s.fm(GLASS, bus, t + 0.14, 1568, 0.3, 0.06, true);
         break;
       case 'levelUp':
-        [0, 4, 7, 12, 16, 19].forEach((k, i) => s.sweep(0.125, bus, t + i * 0.04, 660 * 2 ** (k / 12), 660 * 2 ** (k / 12), 0.07, 0.035, true));
+        [0, 4, 7, 12, 16].forEach((k, i) => s.fm(MALLET, bus, t + i * 0.05, 659 * 2 ** (k / 12), 0.1, 0.08, true));
         break;
       case 'allClear':
-        [0, 4, 7, 12, 16, 19, 24].forEach((k, i) =>
-          s.fm({ ratio: 3.5, index: 2.5, indexEnd: 0.3, indexTime: 0.4, attack: 0.002, decay: 0.5, sustain: 0.2, release: 0.3 }, bus, t + i * 0.06, 784 * 2 ** (k / 12), 0.2, 0.08, true),
-        );
+        [0, 4, 7, 12, 16, 19, 24].forEach((k, i) => s.fm(GLASS, bus, t + i * 0.06, 784 * 2 ** (k / 12), 0.2, 0.07, true));
         break;
       case 'tick':
-        s.sweep(0.5, bus, t, 2000, 2000, 0.02, 0.03);
+        s.fm(MALLET, bus, t, 1568, 0.03, 0.05);
+        break;
+      case 'coin': {
+        // Two bright pings a fourth apart; successive coins climb.
+        const f = 1175 * 2 ** ((POP_SCALE[arg % 6] ?? 0) / 12);
+        s.sweep('triangle', bus, t, f, f, 0.05, 0.05);
+        s.fm(GLASS, bus, t + 0.05, f * 1.335, 0.08, 0.05, true);
+        break;
+      }
+      case 'chest':
+        s.noiseHit(bus, t, 0.5, 0.05, 'highpass', 2500, 0.7, 9000);
+        [0, 7, 12, 16, 19, 24].forEach((k, i) => s.fm(GLASS, bus, t + i * 0.055, 523 * 2 ** (k / 12), 0.25, 0.06, true));
+        s.sweep('sine', bus, t, 130, 65, 0.25, 0.12);
         break;
       case 'heartbeat':
-        s.sweep('sine', bus, t, 90, 45, 0.12, 0.3);
-        s.sweep('sine', bus, t + 0.18, 85, 42, 0.12, 0.22);
+        s.sweep('sine', bus, t, 90, 45, 0.12, 0.2);
+        s.sweep('sine', bus, t + 0.18, 85, 42, 0.12, 0.14);
         break;
     }
   }
@@ -221,7 +244,7 @@ export class AudioEngine {
     const base = who === 'hero' ? 330 : who === 'rival' ? 240 : 150;
     const robot = who === 'robot';
     const shout = (v: Partial<VoiceSpec> & Pick<VoiceSpec, 'vowels' | 'dur'>, at = 0, up = 0): void =>
-      s.voice(s.sfx, t + at, { pitch: base * 2 ** (up / 12), glide: 3, vol: 0.55, breath: 0.7, robot, ...v });
+      s.voice(s.sfx, t + at, { pitch: base * 2 ** (up / 12), glide: 3, vol: 0.4, breath: 0.6, robot, ...v });
     switch (Math.min(chain, 6)) {
       case 2:
         shout({ vowels: [['u', 1]], dur: 0.15 });

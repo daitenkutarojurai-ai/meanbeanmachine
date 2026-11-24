@@ -85,7 +85,7 @@ export const TROPHY_ROAD: RoadReward[] = [
   { trophies: 4600, skin: 'royal' },
 ];
 
-export type QuestKind = 'win' | 'play' | 'chain' | 'send' | 'pop' | 'score' | 'adventure';
+export type QuestKind = 'win' | 'play' | 'chain' | 'send' | 'pop' | 'score' | 'boss';
 
 export interface QuestDef {
   id: string;
@@ -105,7 +105,7 @@ export const QUEST_POOL: QuestDef[] = [
   { id: 'send30', kind: 'send', goal: 30, text: 'Send 30 refugee beans', coins: 70 },
   { id: 'pop120', kind: 'pop', goal: 120, text: 'Pop 120 beans', coins: 60 },
   { id: 'score8k', kind: 'score', goal: 8000, text: 'Score 8,000 in one battle', coins: 60 },
-  { id: 'adv1', kind: 'adventure', goal: 1, text: 'Clear an Adventure stage', gems: 5 },
+  { id: 'boss1', kind: 'boss', goal: 1, text: 'Beat an arena boss', gems: 5 },
 ];
 
 export interface ShopOffer {

@@ -297,6 +297,16 @@ export class Synth {
     this.noiseHit(dest, t, open ? 0.2 : 0.03, vol, 'highpass', 9000);
   }
 
+  /** A dry wooden click for laid-back grooves. */
+  rim(dest: AudioNode, t: number, vol: number): void {
+    this.noiseHit(dest, t, 0.03, vol * 0.7, 'bandpass', 2400, 3);
+    this.sweep('triangle', dest, t, 1800, 1300, 0.035, vol * 0.45);
+  }
+
+  shaker(dest: AudioNode, t: number, vol: number): void {
+    this.noiseHit(dest, t, 0.05, vol, 'highpass', 7000);
+  }
+
   crash(dest: AudioNode, t: number, vol: number): void {
     this.noiseHit(dest, t, 1.3, vol, 'highpass', 3800);
   }

@@ -16,7 +16,7 @@ export function showResults(outcome: BattleOutcome, rewards: BattleRewards, oppo
   const info = levelInfo();
   const xpFill = el('i', { style: `width:${Math.round(((info.into - rewards.xp < 0 ? 0 : info.into - rewards.xp) / info.need) * 100)}%` });
   const rows: (Node | string)[] = [
-    el('div', { class: `ribbon ${won ? 'win' : 'lose'} outline` }, won ? 'VICTORY!' : 'DEFEAT'),
+    el('div', { class: `ribbon ${won ? 'win' : 'lose'} outline` }, won ? (rewards.boss ? 'BOSS DOWN!' : 'VICTORY!') : 'DEFEAT'),
     el('p', { class: 'center muted' }, `vs ${opponent} · best chain ${outcome.stats.maxChain} · ${fmt(outcome.stats.score)} pts`),
     canvas,
     el('div', { class: 'reward-row' },
@@ -26,6 +26,8 @@ export function showResults(outcome: BattleOutcome, rewards: BattleRewards, oppo
     ),
     el('div', { class: 'xpbar', style: 'height:14px' }, xpFill),
   ];
+  if (rewards.boss && won) rows.push(el('p', { class: 'center display outline', style: 'font-size:20px;color:#ffe36a' }, 'Boss bonus: +15 trophies and a big chest!'));
+  else if (rewards.boss) rows.push(el('p', { class: 'center muted' }, 'The boss will be back after your next few battles.'));
   if (rewards.chest) rows.push(el('div', { class: 'card center stack', style: 'animation:pop .5s .5s both' }, el('div', { html: chestSvg(rewards.chest), style: 'width:110px;margin:0 auto' }), el('b', { class: 'display' }, `${CHESTS[rewards.chest].name} won!`)));
   else if (rewards.slotsFull && won) rows.push(el('p', { class: 'center', style: 'color:#ffe36a' }, 'Chest slots full: open a chest to earn more!'));
   if (rewards.levelUp) rows.push(el('p', { class: 'center display outline', style: 'font-size:24px;color:#9af0ff' }, `Level up! You're level ${rewards.levelUp}`));
@@ -35,6 +37,8 @@ export function showResults(outcome: BattleOutcome, rewards: BattleRewards, oppo
   const m = modal('', rows, { onClose: onDone, closable: false });
   setTimeout(() => {
     countUp(trophyNum, profile.trophies - rewards.trophies, profile.trophies, 1000);
+    if (won) for (let i = 0; i < 6; i++) setTimeout(() => audio.sfx('coin', i), i * 110);
+    if (rewards.chest) setTimeout(() => audio.sfx('chest'), 800);
     xpFill.style.width = `${Math.round((info.into / info.need) * 100)}%`;
     if (rewards.levelUp || rewards.newArena) audio.sfx('levelUp');
   }, 500);

@@ -1,6 +1,6 @@
 import type { App } from '../app.ts';
 import { audio } from '../audio.ts';
-import { nextArena } from '../meta/arenas.ts';
+import { BOSS_EVERY, bossOf, nextArena } from '../meta/arenas.ts';
 import {
   arena,
   chestSkipCost,
@@ -25,16 +25,16 @@ import { drawStage } from '../render/stage.ts';
 import { settings, saveSettings } from '../storage.ts';
 import { openChestModal } from './chest.ts';
 import { ICONS, button, chestSvg, el, fmt, fmtTime, heroCanvas, modal, svg, toast } from './components.ts';
-import { Flows } from './flows.ts';
-import { adventureTab, profileTab, shopTab, skinsTab } from './tabs.ts';
+import { Flows, nextIsBoss } from './flows.ts';
+import { arenasTab, profileTab, shopTab, skinsTab } from './tabs.ts';
 
-export type Tab = 'shop' | 'skins' | 'battle' | 'adventure' | 'profile';
+export type Tab = 'shop' | 'skins' | 'battle' | 'arenas' | 'profile';
 
 const NAV: { id: Tab; label: string; icon: string }[] = [
   { id: 'shop', label: 'Shop', icon: ICONS.shop },
   { id: 'skins', label: 'Skins', icon: ICONS.cards },
   { id: 'battle', label: 'Battle', icon: ICONS.swords },
-  { id: 'adventure', label: 'Adventure', icon: ICONS.map },
+  { id: 'arenas', label: 'Arenas', icon: ICONS.map },
   { id: 'profile', label: 'Profile', icon: ICONS.user },
 ];
 
@@ -105,8 +105,8 @@ export class Home {
         return shopTab(this);
       case 'skins':
         return skinsTab(this);
-      case 'adventure':
-        return adventureTab(this);
+      case 'arenas':
+        return arenasTab(this);
       case 'profile':
         return profileTab(this);
     }
@@ -180,12 +180,15 @@ export class Home {
     card.append(el('div', { class: 'side-btns left' }, this.freeBtn, roadBtn), el('div', { class: 'side-btns right' }, questBtn));
     this.updateFree();
 
-    const battle = button('BATTLE', { cls: 'btn-gold btn-xl', onClick: () => this.flows.ranked() });
+    const boss = nextIsBoss();
+    const battle = button(boss ? 'BOSS BATTLE' : 'BATTLE', { cls: `btn-xl ${boss ? 'btn-red boss-pulse' : 'btn-gold'}`, onClick: () => this.flows.ranked() });
+    const left = BOSS_EVERY - 1 - ((profile.arenaBattles[a.id] ?? 0) % BOSS_EVERY);
+    const bossInfo = profile.stats.played < 3 ? null : el('div', { class: `boss-hint outline${boss ? ' now' : ''}` }, boss ? `Boss ${bossOf(a).name} is here! Win for a big chest` : `Boss ${bossOf(a).name} in ${left} battle${left === 1 ? '' : 's'}`);
     const modes = button('', { cls: 'btn-blue btn-icon', icon: ICONS.modes, onClick: () => this.modes() });
     modes.style.cssText = 'width:72px;height:72px;border-radius:20px';
     this.slotsBox = el('div', { class: 'chest-slots' });
     this.renderSlots();
-    return el('div', { class: 'battle-tab' }, card, el('div', { class: 'battle-row' }, battle, modes), this.slotsBox);
+    return el('div', { class: 'battle-tab' }, card, bossInfo ?? '', el('div', { class: 'battle-row' }, battle, modes), this.slotsBox);
   }
 
   private tick(): void {
@@ -277,21 +280,11 @@ export class Home {
       b.replaceChildren(svg(icon), el('span', { style: 'display:flex;flex-direction:column' }, el('span', {}, title), el('small', { style: 'font-family:var(--body);font-size:13px;text-shadow:none;opacity:.9' }, sub)));
       return b;
     };
-    const practice = el('div', { class: 'seg' });
-    ['Easy', 'Normal', 'Hard'].forEach((name, lvl) => {
-      const b = el('button', { type: 'button' }, name);
-      b.addEventListener('click', () => {
-        m.close();
-        this.flows.practice(lvl);
-      });
-      practice.append(b);
-    });
     const m = modal('Game modes', [
       item(ICONS.globe, 'Online battle', 'Quick match against real players', () => this.flows.online('quick'), 'btn-gold'),
       item(ICONS.people, 'Play a friend', 'Create or join a room with a code', () => this.flows.online('menu')),
-      item(ICONS.map, 'Adventure', 'Sprout vs Professor Grimgear', () => this.setTab('adventure'), 'btn-green'),
-      item(ICONS.keyboard, 'Two players, one device', 'WASD + F/G vs arrows + K/L, or two gamepads', () => this.flows.local2p([settings.levels[0], settings.levels[1]], settings.games), 'btn-purple'),
-      el('div', { class: 'card dark stack' }, el('h3', { class: 'outline' }, 'Practice (endless)'), practice),
+      item(ICONS.keyboard, 'Two players, one device', 'WASD + F/G vs arrows + K/L, or two gamepads', () => this.flows.local2p([1, 1], 2), 'btn-purple'),
+      item(ICONS.star, 'Practice', 'Endless solo run, beat your best score', () => this.flows.practice(), 'btn-green'),
     ]);
   }
 

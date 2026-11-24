@@ -1,20 +1,14 @@
-import type { Difficulty } from '@mbm/engine';
 
 export interface Settings {
   sfx: number;
   music: number;
   name: string;
-  difficulty: Difficulty;
   games: number;
-  levels: [number, number];
-  onlineLevel: number;
   touch: 'auto' | 'on' | 'off';
   crt: boolean;
 }
 
 export interface Progress {
-  /** Highest scenario stage reached (0-based) per difficulty. */
-  scenario: Record<Difficulty, number>;
   exerciseBest: number[];
   wins: number;
   losses: number;
@@ -25,16 +19,12 @@ const DEFAULT_SETTINGS: Settings = {
   sfx: 0.8,
   music: 0.5,
   name: '',
-  difficulty: 'normal',
   games: 3,
-  levels: [1, 1],
-  onlineLevel: 1,
   touch: 'auto',
   crt: false,
 };
 
 const DEFAULT_PROGRESS: Progress = {
-  scenario: { easy: 0, normal: 0, hard: 0, hardest: 0 },
   exerciseBest: [0, 0, 0],
   wins: 0,
   losses: 0,

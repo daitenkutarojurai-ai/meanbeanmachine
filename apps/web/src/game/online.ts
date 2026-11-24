@@ -225,6 +225,9 @@ class OnlineBattle implements Session {
 }
 
 /** Matchmaking, rooms and rematches around online rounds. */
+/** Everyone plays online on the same standard board: five colours, no handicap. */
+const ONLINE_LEVEL = 1;
+
 export class OnlineFlow {
   private lobby: Lobby | null = null;
   private games = settings.games;
@@ -243,7 +246,7 @@ export class OnlineFlow {
     this.skin = me.skin;
     this.name = me.name;
     this.onDone = onDone;
-    if (start === 'quick') void this.go({ t: 'quick', level: settings.onlineLevel });
+    if (start === 'quick') void this.go({ t: 'quick', level: ONLINE_LEVEL });
     else this.menu();
   }
 
@@ -256,27 +259,6 @@ export class OnlineFlow {
   private show(title: string, content: (Node | string)[], closable = true): void {
     this.closeUi();
     this.ui = modal(title, content, { onClose: () => this.ui && this.quit(), closable });
-  }
-
-  private levelPicker(onChange?: () => void): HTMLElement {
-    const seg = el('div', { class: 'seg' });
-    const render = (): void => {
-      seg.replaceChildren(
-        ...[0, 1, 2, 3, 4].map((l) => {
-          const b = el('button', { type: 'button', class: l === settings.onlineLevel ? 'on' : '' }, String(l + 1));
-          b.addEventListener('click', () => {
-            settings.onlineLevel = l;
-            saveSettings();
-            audio.sfx('menu');
-            render();
-            onChange?.();
-          });
-          return b;
-        }),
-      );
-    };
-    render();
-    return seg;
   }
 
   private menu(error?: string): void {
@@ -300,10 +282,8 @@ export class OnlineFlow {
     const code = el('input', { type: 'text', maxLength: 4, placeholder: 'ROOM CODE' });
     this.show('Online Battle', [
       error ? el('p', { class: 'center', style: 'color:#ffb0b8' }, error) : '',
-      el('p', { class: 'muted center' }, 'Handicap level (1 = 4 colours, 4–5 start with refugees)'),
-      this.levelPicker(),
-      button('Quick match', { cls: 'btn-gold btn-xl', icon: ICONS.globe, onClick: () => void this.go({ t: 'quick', level: settings.onlineLevel }) }),
-      el('div', { class: 'card dark stack' }, el('h3', { class: 'outline' }, 'Play a friend'), games, button('Create room', { cls: 'btn-blue', onClick: () => void this.go({ t: 'create', level: settings.onlineLevel, games: this.games }) }), el('div', { class: 'row' }, code, button('Join', { cls: 'btn-green', onClick: () => this.join(code.value) }))),
+      button('Quick match', { cls: 'btn-gold btn-xl', icon: ICONS.globe, onClick: () => void this.go({ t: 'quick', level: ONLINE_LEVEL }) }),
+      el('div', { class: 'card dark stack' }, el('h3', { class: 'outline' }, 'Play a friend'), games, button('Create room', { cls: 'btn-blue', onClick: () => void this.go({ t: 'create', level: ONLINE_LEVEL, games: this.games }) }), el('div', { class: 'row' }, code, button('Join', { cls: 'btn-green', onClick: () => this.join(code.value) }))),
     ]);
     code.addEventListener('keydown', (e) => {
       if (e.key === 'Enter') this.join(code.value);
@@ -313,7 +293,7 @@ export class OnlineFlow {
   private join(raw: string): void {
     const c = raw.trim().toUpperCase();
     if (c.length !== 4) return toast('Codes have 4 letters');
-    void this.go({ t: 'join', code: c, level: settings.onlineLevel });
+    void this.go({ t: 'join', code: c, level: ONLINE_LEVEL });
   }
 
   private async go(msg: Parameters<typeof net.send>[0]): Promise<void> {
@@ -395,13 +375,13 @@ export class OnlineFlow {
     const meP = m.players[m.you];
     const slot = (i: number): HTMLElement => {
       const p = m.players[i]?.connected ? m.players[i] : null;
-      return el('div', { class: 'card dark center stack', style: 'padding:10px' }, el('b', { class: 'display', style: 'font-size:20px' }, p ? p.name : 'Waiting…'), el('small', { class: 'muted' }, p ? `Level ${p.level + 1}` : 'Share the code'), el('span', { style: `color:${p?.ready ? '#7ef08a' : '#b8c4f0'}` }, p ? (p.ready ? 'READY!' : 'Not ready') : ''));
+      return el('div', { class: 'card dark center stack', style: 'padding:10px' }, el('b', { class: 'display', style: 'font-size:20px' }, p ? p.name : 'Waiting…'), el('small', { class: 'muted' }, p ? 'In the room' : 'Share the code'), el('span', { style: `color:${p?.ready ? '#7ef08a' : '#b8c4f0'}` }, p ? (p.ready ? 'READY!' : 'Not ready') : ''));
     };
     this.show('Room', [
       el('div', { class: 'center display outline', style: 'font-size:52px;letter-spacing:8px;color:#ffe36a' }, m.code),
       el('p', { class: 'muted center' }, `Best of ${m.games} · share this code with a friend`),
       el('div', { class: 'grid2' }, slot(0), slot(1)),
-      meP?.ready ? el('p', { class: 'center' }, 'Waiting for your opponent…') : this.levelPicker(() => net.send({ t: 'level', level: settings.onlineLevel })),
+      meP?.ready ? el('p', { class: 'center' }, 'Waiting for your opponent…') : '',
       meP?.ready ? '' : button('Ready!', { cls: 'btn-green btn-xl', onClick: () => net.send({ t: 'ready' }) }),
       button('Leave room', { cls: 'btn-red', onClick: () => this.leave() }),
     ]);

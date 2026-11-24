@@ -1,7 +1,7 @@
 // Modern arena backdrops: smooth gradients, soft silhouettes, glow and drifting particles.
 // Painted at the canvas' real resolution; the static part is cached until a resize.
 
-export type SceneKind = 'meadow' | 'junkyard' | 'steam' | 'disco' | 'sea' | 'city' | 'mine' | 'castle' | 'lava' | 'rooftop' | 'lab';
+export type SceneKind = 'meadow' | 'junkyard' | 'steam' | 'disco' | 'sea' | 'frost' | 'city' | 'mine' | 'candy' | 'castle' | 'lava' | 'rooftop' | 'lab';
 
 type LayerKind = 'hills' | 'jagged' | 'city' | 'castle' | 'pipes' | 'volcano' | 'roofs' | 'dunes';
 type ParticleKind = 'pollen' | 'dust' | 'steam' | 'sparkle' | 'stars' | 'embers' | 'bubbles' | 'motes' | 'snow';
@@ -59,6 +59,27 @@ const DEFS: Record<SceneKind, StageDef> = {
       { kind: 'dunes', color: '#081e48', base: 0.92, amp: 0.016 },
     ],
     particles: { kind: 'stars', color: '255,255,255', count: 70 },
+  },
+  frost: {
+    sky: ['#6aa8e8', '#b8dcff', '#eef8ff'],
+    glow: { x: 0.2, y: 0.18, r: 0.07, color: 'rgba(255,255,255,0.45)', core: '#ffffff' },
+    layers: [
+      { kind: 'jagged', color: '#c8def4', base: 0.66, amp: 0.12 },
+      { kind: 'jagged', color: '#9cc0e4', base: 0.78, amp: 0.08 },
+      { kind: 'hills', color: '#f4faff', base: 0.9, amp: 0.025 },
+    ],
+    particles: { kind: 'snow', color: '255,255,255', count: 60 },
+  },
+  candy: {
+    sky: ['#ff9ad0', '#ffc8e4', '#fff0f8'],
+    glow: { x: 0.75, y: 0.2, r: 0.09, color: 'rgba(255,255,220,0.5)', core: '#fff8d8' },
+    rays: 'rgba(255,255,255,0.12)',
+    layers: [
+      { kind: 'pipes', color: '#f070b0', base: 0.7, amp: 0.25 },
+      { kind: 'hills', color: '#a86ae0', base: 0.82, amp: 0.04 },
+      { kind: 'dunes', color: '#7a3ac0', base: 0.92, amp: 0.012 },
+    ],
+    particles: { kind: 'sparkle', color: '255,255,255', count: 34 },
   },
   city: {
     sky: ['#0c0a2e', '#3a1a6a', '#d0508a'],
@@ -320,7 +341,9 @@ function particles(g: CanvasRenderingContext2D, p: StageDef['particles'], w: num
         g.fill();
         continue;
       case 'snow':
-        y = (y0 + t * m * 0.03 * speed) % h;
+        x = x0 + Math.sin(t * speed + phase) * m * 0.02;
+        y = (y0 + t * m * 0.04 * speed) % h;
+        a = 0.85;
         break;
     }
     g.fillStyle = `rgba(${p.color},${Math.max(0, a)})`;

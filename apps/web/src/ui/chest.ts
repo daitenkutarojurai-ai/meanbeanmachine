@@ -37,12 +37,13 @@ export function openChestModal(loot: Loot, onDone: () => void): void {
       return;
     }
     audio.sfx(i === 0 ? 'allClear' : 'levelUp');
+    for (let k = 0; k < 5; k++) setTimeout(() => audio.sfx('coin', k), 120 + k * 90);
     stage.replaceChildren(rewards[i](), el('p', { class: 'muted' }, i === rewards.length - 1 ? 'Tap to finish' : 'Tap for more'));
     i++;
   };
   chest.addEventListener('click', () => {
     chest.classList.add('opening');
-    audio.sfx('garbageSend');
+    audio.sfx('chest');
     setTimeout(() => {
       next();
       box.addEventListener('click', next);

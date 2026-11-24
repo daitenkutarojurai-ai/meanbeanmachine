@@ -30,11 +30,19 @@ export const PATCHES = {
   sawBass: saw({ detune: 6, cutoff: 500, sweep: 1400, q: 3, attack: 0.004, decay: 0.16, sustain: 0.5, release: 0.06, sub: 0.6 }),
   subBass: saw({ detune: 3, cutoff: 300, sweep: 500, q: 1, attack: 0.01, decay: 0.3, sustain: 0.7, release: 0.15, sub: 0.9 }),
   sawPad: saw({ detune: 20, cutoff: 1400, sweep: 400, q: 0.5, attack: 0.25, decay: 0.6, sustain: 0.7, release: 0.6 }),
+  // Light palette: mallets, bells and round basses that sit back in the mix.
+  marimba: fm({ ratio: 4, index: 2.2, indexEnd: 0.08, indexTime: 0.05, attack: 0.002, decay: 0.32, sustain: 0.04, release: 0.25 }),
+  kalimba: fm({ ratio: 5, index: 1.4, indexEnd: 0.05, indexTime: 0.04, attack: 0.002, decay: 0.45, sustain: 0.05, release: 0.3 }),
+  softBell: fm({ ratio: 3.5, index: 1.5, indexEnd: 0.15, indexTime: 0.35, attack: 0.003, decay: 0.8, sustain: 0.18, release: 0.6 }),
+  flute: tri({ duty: 0.5, attack: 0.045, decay: 0.2, sustain: 0.8, release: 0.12, vibrato: 0.01 }),
+  keys: fm({ ratio: 1, index: 1.1, indexEnd: 0.2, indexTime: 0.5, attack: 0.004, decay: 0.6, sustain: 0.3, release: 0.25, chorus: 6 }),
+  roundBass: fm({ ratio: 1, index: 0.8, indexEnd: 0.25, indexTime: 0.15, attack: 0.006, decay: 0.25, sustain: 0.6, release: 0.08 }),
+  warmPad: saw({ detune: 14, cutoff: 800, sweep: 200, q: 0.4, attack: 0.4, decay: 0.8, sustain: 0.7, release: 0.8 }),
 } satisfies Record<string, Patch>;
 
-type BassStyle = 'pop' | 'rock' | 'funk' | 'drive' | 'march' | 'soft' | 'none';
-type ArpStyle = 'up16' | 'up8' | 'stab' | 'pad' | 'broken' | 'none';
-type DrumStyle = 'pop' | 'rock' | 'funk' | 'drive' | 'boss' | 'light' | 'none';
+type BassStyle = 'pop' | 'rock' | 'funk' | 'drive' | 'march' | 'soft' | 'lofi' | 'bounce' | 'none';
+type ArpStyle = 'up16' | 'up8' | 'stab' | 'pad' | 'broken' | 'lazy' | 'none';
+type DrumStyle = 'pop' | 'rock' | 'funk' | 'drive' | 'boss' | 'light' | 'chill' | 'bounce' | 'none';
 
 interface Section {
   chords: string[];
@@ -76,6 +84,8 @@ const BASS: Record<BassStyle, string> = {
   drive: 'R.R.o.R.R.R.o.R.',
   march: 'R...o...R...o.R.',
   soft: 'R-------5-------',
+  lofi: 'R-----R.5-----..',
+  bounce: 'R-.R-.5-R-..5-o.',
   none: '................',
 };
 
@@ -86,6 +96,9 @@ const DRUMS: Record<DrumStyle, string[]> = {
   drive: ['kh', 'h', 'h', 'h', 'sh', 'h', 'h', 'h', 'kh', 'h', 'kh', 'h', 'sh', 'h', 'h', 'o'],
   boss: ['kh', '.', 'h', '.', 'sh', '.', 'h', 'k', 'kh', '.', 'kh', '.', 'sh', '.', 's', 's'],
   light: ['h', '.', '.', '.', 'h', '.', '.', '.', 'h', '.', '.', '.', 'h', '.', 'h', '.'],
+  // x = shaker, r = rim click.
+  chill: ['k', '.', 'x', '.', 'r', '.', 'x', '.', '.', 'k', 'x', '.', 'r', '.', 'x', 'x'],
+  bounce: ['kx', '.', 'x', '.', 'sx', '.', 'x', 'k', '.', 'x', 'kx', '.', 'sx', '.', 'x', 'r'],
   none: Array(16).fill('.'),
 };
 
@@ -150,7 +163,7 @@ export function compile(def: SongDef): CompiledSong {
           bass[step] = { midi: low + off, len };
         } else bass[step] = null;
         let d = drumPat[s];
-        if (b === 0 && s === 0 && sec.drums !== 'none' && sec.drums !== 'light') d += 'c';
+        if (b === 0 && s === 0 && (sec.drums === 'rock' || sec.drums === 'drive' || sec.drums === 'boss')) d += 'c';
         drums[step] = d;
         arp[step] = arpAt(sec.arp ?? 'up16', c, s, parts.length);
       }
@@ -171,6 +184,8 @@ function arpAt(style: ArpStyle, c: { root: number; tones: number[] }, s: number,
       return s % 2 ? [] : [{ midi: root + tones[[0, 1, 2, 3, 2, 1, 0, 1][(s / 2) % 8] % tones.length], len: 2 }];
     case 'broken':
       return s % 2 ? [] : [{ midi: root + tones[[0, 2, 1, 2][(s / 2) % 4]], len: 2 }];
+    case 'lazy':
+      return s % 4 === 0 ? [{ midi: root + tones[[0, 2, 1, 3][(s / 4) % 4] % tones.length], len: 3 }] : [];
     case 'stab':
       return s % 4 === 2 ? c.tones.slice(0, 3).map((t) => ({ midi: root + t, len: 1 })) : [];
     case 'pad':
@@ -181,253 +196,273 @@ function arpAt(style: ArpStyle, c: { root: number; tones: number[] }, s: number,
 }
 
 export const SONGS = {
+  // Lo-fi and unhurried: the menu should be somewhere you like to sit.
   title: {
-    bpm: 132,
+    bpm: 86,
     loop: true,
-    lead: PATCHES.softLead,
-    arp: PATCHES.pluck,
-    bass: PATCHES.subBass,
-    vol: { lead: 0.15, arp: 0.045, bass: 0.2, drums: 0.3 },
+    lead: PATCHES.softBell,
+    arp: PATCHES.keys,
+    bass: PATCHES.roundBass,
+    vol: { lead: 0.15, arp: 0.05, bass: 0.17, drums: 0.24 },
     sections: {
       A: {
-        chords: ['C', 'Am', 'F', 'G'],
-        lead: `E5 - - G5 - - C6 - B5 - A5 - G5 - - -
-               A5 - - E5 - - C5 - D5 - E5 - C5 - - -
-               F5 - - A5 - - C6 - B5 - A5 - F5 - - -
-               G5 - - B5 - - D6 - C6 - B5 - G5 - D5 -`,
+        chords: ['Fmaj7', 'Em7', 'Dm7', 'Cmaj7'],
+        bass: 'lofi',
+        arp: 'lazy',
+        drums: 'chill',
+        lead: `. . A5 - - - C6 - E6 - - - C6 - - -
+               B5 - - - G5 - - - . . E5 - G5 - - -
+               . . F5 - A5 - - - C6 - - - D6 - C6 -
+               B5 - - - - - G5 - E5 - - - - - - -`,
       },
       A2: {
-        chords: ['C', 'Am', 'Dm7 G', 'C'],
-        lead: `E5 - - G5 - - C6 - B5 - A5 - G5 - E5 -
-               A5 - G5 - E5 - C5 - E5 - G5 - A5 - - -
-               F5 - E5 - D5 - F5 - B4 - D5 - G5 - F5 -
-               E5 - - - C5 - - - C6 - - - . . . .`,
+        chords: ['Fmaj7', 'Em7', 'Dm7 G', 'Cmaj7'],
+        bass: 'lofi',
+        arp: 'lazy',
+        drums: 'chill',
+        lead: `. . A5 - - - C6 - E6 - - - G6 - - -
+               E6 - D6 - B5 - - - . . G5 - B5 - - -
+               A5 - - - F5 - - - G5 - - - B5 - D6 -
+               C6 - - - - - - - . . . . . . . .`,
       },
       B: {
-        chords: ['F', 'G', 'Em Am', 'Dm G'],
-        arp: 'up8',
-        lead: `A5 - C6 - A5 - F5 - G5 - A5 - - - C5 -
-               B5 - D6 - B5 - G5 - A5 - B5 - - - D5 -
-               G5 - E5 - B4 - E5 - C6 - A5 - E5 - A5 -
-               F5 - A5 - D6 - C6 - B5 - A5 - G5 - D5 -`,
+        chords: ['Am7', 'Dm7', 'Bbmaj7', 'Csus4 C'],
+        bass: 'lofi',
+        arp: 'lazy',
+        drums: 'chill',
+        lead: `E5 - - - . . A5 - C6 - - - . . B5 -
+               A5 - - - - - . . F5 - A5 - C6 - - -
+               D6 - - - - - C6 - Bb5 - - - A5 - - -
+               F5 - - - - - - - E5 - - - - - - -`,
+      },
+      C: {
+        chords: ['Fmaj7', 'Em7', 'Dm7', 'Cmaj7'],
+        bass: 'lofi',
+        arp: 'lazy',
+        drums: 'chill',
+        lead: `. . . . . . . . . . . . . . . .
+               . . . . . . . . . . . . . . . .
+               . . . . . . . . . . . . . . . .
+               . . . . . . . . . . . . . . . .`,
       },
     },
-    order: ['A', 'A2', 'B', 'A', 'A2'],
+    order: ['A', 'A2', 'B', 'A2', 'C'],
   },
+  // Bouncy and bright, with gaps in the tune so it never nags.
   battle: {
-    bpm: 150,
+    bpm: 116,
     loop: true,
-    lead: PATCHES.supersaw,
-    arp: PATCHES.pluck,
-    bass: PATCHES.sawBass,
-    vol: { lead: 0.14, arp: 0.04, bass: 0.22, drums: 0.34 },
+    lead: PATCHES.marimba,
+    arp: PATCHES.keys,
+    bass: PATCHES.roundBass,
+    vol: { lead: 0.2, arp: 0.04, bass: 0.18, drums: 0.24 },
     sections: {
       A: {
-        chords: ['Am', 'F', 'G', 'Em'],
-        bass: 'rock',
-        drums: 'rock',
-        lead: `A4 - C5 - E5 - A5 - G5 - E5 - D5 - C5 -
-               C5 - - - A4 - C5 - F5 - E5 - C5 - A4 -
-               B4 - D5 - G5 - B5 - A5 - G5 - D5 - B4 -
-               E5 - - - B4 - E5 - G5 - F#5 - E5 - D5 -`,
+        chords: ['D', 'Bm7', 'Gmaj7', 'A'],
+        bass: 'bounce',
+        arp: 'lazy',
+        drums: 'bounce',
+        lead: `F#5 - A5 - . . D6 - . . A5 - F#5 - . .
+               F#5 - D5 - . . B4 - . . D5 - F#5 - A5 -
+               B5 - - - A5 - . . F#5 - - - D5 - . .
+               E5 - - - C#5 - E5 - A5 - - - . . . .`,
       },
       A2: {
-        chords: ['Am', 'F', 'G', 'E'],
-        bass: 'rock',
-        drums: 'rock',
-        lead: `A5 - - G5 - E5 - . C5 - D5 - E5 - A5 -
-               C6 - - B5 - A5 - . F5 - G5 - A5 - C6 -
-               B5 - - A5 - G5 - . D5 - E5 - G5 - B5 -
-               G#5 - - - E5 - - - B4 - D5 - E5 - G#5 -`,
+        chords: ['D', 'Bm7', 'Em7', 'A'],
+        bass: 'bounce',
+        arp: 'lazy',
+        drums: 'bounce',
+        lead: `F#5 - A5 - . . D6 - . . E6 - F#6 - . .
+               D6 - - - B5 - . . A5 - F#5 - . . D5 -
+               G5 - - - F#5 - E5 - D5 - - - B4 - . .
+               C#5 - E5 - A5 - - - - - - - . . . .`,
       },
       B: {
-        chords: ['Dm', 'Am', 'Dm', 'E'],
-        bass: 'drive',
-        drums: 'drive',
-        lead: `D5 - F5 - A5 - - - D6 - C6 - A5 - F5 -
-               E5 - A5 - C6 - - - B5 - A5 - E5 - C5 -
-               F5 - A5 - D6 - - - E6 - D6 - A5 - F5 -
-               E6 - - - D6 - C6 - B5 - A5 - G#5 - B5 -`,
+        chords: ['Gmaj7', 'A', 'F#m7', 'Bm7 A'],
+        bass: 'pop',
+        arp: 'up8',
+        drums: 'chill',
+        lead: `. . B5 - D6 - B5 - . . A5 - G5 - . .
+               . . C#6 - E6 - C#6 - . . B5 - A5 - . .
+               . . A5 - C#6 - A5 - . . E5 - F#5 - . .
+               D6 - - - - - . . C#6 - - - E6 - - -`,
       },
     },
-    order: ['A', 'A2', 'B', 'A', 'A2'],
+    order: ['A', 'A2', 'B', 'A2'],
   },
   battle2: {
-    bpm: 156,
+    bpm: 112,
     loop: true,
-    lead: PATCHES.epiano,
-    arp: PATCHES.pluck,
-    bass: PATCHES.sawBass,
-    vol: { lead: 0.14, arp: 0.045, bass: 0.2, drums: 0.3 },
+    lead: PATCHES.kalimba,
+    arp: PATCHES.keys,
+    bass: PATCHES.roundBass,
+    vol: { lead: 0.22, arp: 0.045, bass: 0.18, drums: 0.24 },
     sections: {
       A: {
-        chords: ['Dm7', 'Gm7', 'Bbmaj7', 'A7'],
+        chords: ['Fmaj7', 'Em7 A7', 'Dm7', 'Gm7 C'],
         bass: 'funk',
         arp: 'stab',
-        drums: 'funk',
-        lead: `D5 . F5 . A5 - . G5 - . F5 . D5 - C5 -
-               Bb4 . D5 . G5 - . F5 - . D5 . Bb4 - A4 -
-               D5 . F5 . A5 - . C6 - . A5 . F5 - D5 -
-               C#5 . E5 . G5 - . A5 - . G5 . E5 - C#5 -`,
+        drums: 'bounce',
+        lead: `A5 . C6 . E6 - . C6 - . A5 . G5 - . .
+               G5 . B5 . D6 - . B5 - . C#6 . E6 - . .
+               F6 - - - E6 - D6 - C6 - - - A5 - . .
+               Bb5 - - - G5 - . . E5 - - - C6 - - -`,
       },
       B: {
-        chords: ['Gm7', 'A7', 'Dm7', 'Dm7'],
-        bass: 'funk',
-        arp: 'up16',
-        drums: 'funk',
-        lead: `G5 - - - Bb5 - - - D6 - C6 - Bb5 - A5 -
-               A5 - - - C#6 - - - E6 - D6 - C#6 - A5 -
-               F5 - E5 - D5 - A4 - C5 - D5 - F5 - A5 -
-               D6 - - - - - - - . . . . A5 - C6 -`,
+        chords: ['Bbmaj7', 'C', 'Am7', 'Dm7'],
+        bass: 'bounce',
+        arp: 'lazy',
+        drums: 'chill',
+        lead: `D6 - . . F6 - . . D6 - C6 - A5 - . .
+               E6 - . . G6 - . . E6 - D6 - C6 - . .
+               C6 - - - A5 - - - E5 - G5 - A5 - - -
+               F5 - - - - - - - . . . . . . . .`,
       },
     },
     order: ['A', 'A', 'B', 'A', 'B'],
   },
   battle3: {
-    bpm: 168,
+    bpm: 120,
     loop: true,
-    lead: PATCHES.brightLead,
+    lead: PATCHES.flute,
     arp: PATCHES.pluck,
-    bass: PATCHES.sawBass,
-    vol: { lead: 0.14, arp: 0.04, bass: 0.22, drums: 0.36 },
+    bass: PATCHES.roundBass,
+    vol: { lead: 0.1, arp: 0.04, bass: 0.18, drums: 0.25 },
     sections: {
       A: {
-        chords: ['Em', 'C', 'D', 'B7'],
-        bass: 'drive',
-        drums: 'drive',
-        lead: `E5 - G5 - B5 - E6 - D6 - B5 - G5 - B5 -
-               C6 - B5 - G5 - E5 - G5 - - - E5 - C5 -
-               D5 - F#5 - A5 - D6 - C6 - A5 - F#5 - A5 -
-               B5 - - - A5 - - - F#5 - D#5 - B4 - D#5 -`,
+        chords: ['Am', 'F', 'C', 'G'],
+        bass: 'bounce',
+        arp: 'up8',
+        drums: 'bounce',
+        lead: `E5 - - - A5 - - - C6 - B5 - A5 - - -
+               F5 - - - A5 - - - C6 - - - . . . .
+               G5 - - - E5 - G5 - C6 - - - D6 - E6 -
+               D6 - - - - - B5 - G5 - - - . . . .`,
       },
       B: {
-        chords: ['Am', 'Em', 'C', 'B7'],
-        bass: 'rock',
-        drums: 'rock',
-        lead: `A5 - - - C6 - E6 - D6 - C6 - B5 - A5 -
-               G5 - - - B5 - E6 - D6 - B5 - G5 - E5 -
-               E5 - G5 - C6 - - - B5 - A5 - G5 - E5 -
-               D#5 - F#5 - B5 - - - A5 - F#5 - D#5 - B4 -`,
+        chords: ['Dm', 'Am', 'Bb', 'E'],
+        bass: 'pop',
+        arp: 'lazy',
+        drums: 'chill',
+        lead: `F5 - A5 - D6 - - - C6 - A5 - F5 - - -
+               E5 - A5 - C6 - - - B5 - A5 - E5 - - -
+               D6 - - - F6 - - - D6 - Bb5 - F5 - - -
+               G#5 - - - B5 - - - E6 - - - . . . .`,
       },
     },
     order: ['A', 'A', 'B', 'A'],
   },
+  // Bosses get weight, not speed.
   boss: {
-    bpm: 140,
+    bpm: 124,
     loop: true,
-    lead: PATCHES.darkLead,
-    arp: PATCHES.arp12,
-    bass: PATCHES.subBass,
-    vol: { lead: 0.13, arp: 0.045, bass: 0.24, drums: 0.36 },
+    lead: PATCHES.brass,
+    arp: PATCHES.marimba,
+    bass: PATCHES.roundBass,
+    vol: { lead: 0.1, arp: 0.05, bass: 0.2, drums: 0.27 },
     sections: {
       A: {
-        chords: ['Cm', 'Ab', 'Bb', 'G'],
+        chords: ['Cm', 'Ab', 'Fm', 'G'],
         bass: 'march',
+        arp: 'up8',
         drums: 'boss',
-        lead: `C5 - - - G4 - C5 - Eb5 - - - D5 - C5 -
-               Ab4 - - - C5 - Eb5 - Ab5 - - - G5 - Eb5 -
-               Bb4 - - - D5 - F5 - Bb5 - - - Ab5 - F5 -
-               G5 - - - - - F5 - Eb5 - D5 - B4 - D5 -`,
+        lead: `C5 - - - Eb5 - - - G5 - - - Eb5 - D5 -
+               C5 - - - Eb5 - - - Ab5 - - - G5 - Eb5 -
+               F5 - - - Ab5 - - - C6 - - - Bb5 - Ab5 -
+               G5 - - - - - - - B4 - D5 - F5 - G5 -`,
       },
       B: {
-        chords: ['Fm', 'Cm', 'Ab', 'G'],
-        bass: 'drive',
-        drums: 'drive',
-        lead: `F5 - Ab5 - C6 - - - Ab5 - F5 - C5 - F5 -
-               Eb5 - G5 - C6 - - - G5 - Eb5 - C5 - Eb5 -
-               Ab5 - C6 - Eb6 - - - D6 - C6 - Bb5 - Ab5 -
-               G5 - B5 - D6 - - - F6 - Eb6 - D6 - B5 -`,
+        chords: ['Ab', 'Bb', 'Cm', 'G'],
+        bass: 'bounce',
+        arp: 'lazy',
+        drums: 'bounce',
+        lead: `Eb5 - C5 - Eb5 - Ab5 - - - G5 - Eb5 - . .
+               F5 - D5 - F5 - Bb5 - - - Ab5 - F5 - . .
+               G5 - Eb5 - G5 - C6 - - - Bb5 - G5 - . .
+               B5 - - - - - - - D6 - - - . . . .`,
       },
     },
     order: ['A', 'A', 'B', 'A'],
   },
+  // A nudge that the stack is high, not an alarm.
   danger: {
-    bpm: 184,
+    bpm: 138,
     loop: true,
-    lead: PATCHES.brightLead,
-    arp: PATCHES.arp12,
-    bass: PATCHES.sawBass,
-    vol: { lead: 0.08, arp: 0.0, bass: 0.24, drums: 0.36 },
+    lead: PATCHES.marimba,
+    arp: PATCHES.pluck,
+    bass: PATCHES.roundBass,
+    vol: { lead: 0.16, arp: 0, bass: 0.2, drums: 0.26 },
     sections: {
       A: {
-        chords: ['Am', 'Am', 'Dm', 'E'],
+        chords: ['Am', 'Am', 'F', 'E'],
         bass: 'drive',
         arp: 'none',
-        drums: 'drive',
-        lead: `A5 - E5 - A5 - E5 - Bb5 - E5 - A5 - E5 -
-               A5 - E5 - A5 - E5 - C6 - B5 - Bb5 - A5 -
-               D6 - A5 - D6 - A5 - F6 - E6 - D6 - A5 -
-               E6 - B5 - G#5 - E5 - D6 - B5 - G#5 - B5 -`,
+        drums: 'bounce',
+        lead: `A5 - . . E5 - . . A5 - . . C6 - B5 -
+               A5 - . . E5 - . . A5 - . . G5 - E5 -
+               F5 - . . C6 - . . A5 - . . F5 - A5 -
+               G#5 - - - B5 - - - E6 - - - . . . .`,
       },
     },
     order: ['A'],
   },
   story: {
-    bpm: 92,
+    bpm: 84,
     loop: true,
-    lead: PATCHES.bell,
-    arp: PATCHES.sawPad,
-    bass: PATCHES.subBass,
-    vol: { lead: 0.2, arp: 0.035, bass: 0.2, drums: 0.2 },
+    lead: PATCHES.softBell,
+    arp: PATCHES.warmPad,
+    bass: PATCHES.roundBass,
+    vol: { lead: 0.16, arp: 0.03, bass: 0.16, drums: 0.18 },
     sections: {
       A: {
         chords: ['F', 'C', 'Dm', 'Bb'],
         bass: 'soft',
         arp: 'pad',
-        drums: 'light',
+        drums: 'chill',
         lead: `A5 - - - C6 - - - A5 - G5 - F5 - - -
                G5 - - - E5 - - - C5 - D5 - E5 - - -
                F5 - - - A5 - - - D6 - C6 - A5 - - -
                Bb5 - - - A5 - - - G5 - F5 - D5 - - -`,
       },
-      B: {
-        chords: ['Gm', 'C', 'F', 'F'],
-        bass: 'soft',
-        arp: 'pad',
-        drums: 'light',
-        lead: `G5 - - - Bb5 - - - D6 - C6 - Bb5 - - -
-               C6 - - - Bb5 - A5 - G5 - - - E5 - - -
-               F5 - - - A5 - C6 - F6 - - - - - - -
-               . . . . . . . . . . . . . . . .`,
-      },
     },
-    order: ['A', 'B'],
+    order: ['A'],
   },
   win: {
-    bpm: 150,
+    bpm: 132,
     loop: false,
-    lead: PATCHES.supersaw,
-    arp: PATCHES.pluck,
-    bass: PATCHES.sawBass,
-    vol: { lead: 0.16, arp: 0.05, bass: 0.22, drums: 0.3 },
+    lead: PATCHES.marimba,
+    arp: PATCHES.keys,
+    bass: PATCHES.roundBass,
+    vol: { lead: 0.24, arp: 0.05, bass: 0.18, drums: 0.24 },
     sections: {
       A: {
-        chords: ['C', 'F G', 'C'],
-        bass: 'rock',
-        drums: 'rock',
-        lead: `G4 - C5 - E5 - G5 - - - E5 - G5 - - -
-               A5 - - - F5 - A5 - B5 - - - G5 - B5 -
-               C6 - - - - - - - - - - - . . . .`,
+        chords: ['C', 'F G', 'Cmaj7'],
+        bass: 'pop',
+        arp: 'lazy',
+        drums: 'bounce',
+        lead: `G5 - C6 - E6 - G6 - - - E6 - G6 - - -
+               A6 - - - F6 - A6 - B6 - - - G6 - B6 -
+               C7 - - - - - - - - - - - . . . .`,
       },
     },
     order: ['A'],
   },
   lose: {
-    bpm: 110,
+    bpm: 96,
     loop: false,
-    lead: PATCHES.softLead,
-    arp: PATCHES.sawPad,
-    bass: PATCHES.softBass,
-    vol: { lead: 0.12, arp: 0.03, bass: 0.18, drums: 0 },
+    lead: PATCHES.softBell,
+    arp: PATCHES.warmPad,
+    bass: PATCHES.roundBass,
+    vol: { lead: 0.14, arp: 0.03, bass: 0.15, drums: 0 },
     sections: {
       A: {
-        chords: ['Am', 'Dm E', 'Am'],
+        chords: ['Am7', 'Dm7 G', 'Cmaj7'],
         bass: 'soft',
         arp: 'pad',
         drums: 'none',
         lead: `E5 - - - D5 - - - C5 - - - B4 - - -
-               A4 - - - F4 - - - G#4 - - - B4 - - -
-               A4 - - - - - - - - - - - . . . .`,
+               A4 - - - F4 - - - G4 - - - B4 - - -
+               C5 - - - - - - - - - - - . . . .`,
       },
     },
     order: ['A'],

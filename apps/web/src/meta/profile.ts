@@ -44,6 +44,9 @@ export interface Profile {
   shopBought: string[];
   stats: { played: number; wins: number; losses: number; bestChain: number; refugees: number; popped: number; bestScore: number; streak: number; bestStreak: number };
   seenArena: number;
+  /** Battles played in each arena, which decides when its boss shows up. */
+  arenaBattles: Record<string, number>;
+  lastOpponent: string;
 }
 
 const KEY = 'bm.profile.v2';
@@ -70,6 +73,8 @@ function fresh(): Profile {
     shopBought: [],
     stats: { played: 0, wins: 0, losses: 0, bestChain: 0, refugees: 0, popped: 0, bestScore: 0, streak: 0, bestStreak: 0 },
     seenArena: 0,
+    arenaBattles: {},
+    lastOpponent: '',
   };
 }
 
@@ -79,6 +84,8 @@ function load(): Profile {
     if (raw) {
       const p = { ...fresh(), ...JSON.parse(raw) } as Profile;
       p.stats = { ...fresh().stats, ...p.stats };
+      // Adventure is gone: today's "clear a stage" quest becomes the boss quest.
+      p.quests = p.quests.map((q) => (q.id === 'adv1' ? { ...q, id: 'boss1', progress: q.claimed ? 1 : 0 } : q));
       return p;
     }
   } catch {
@@ -176,6 +183,7 @@ export interface BattleStats {
   popped: number;
   ranked: boolean;
   opponentTrophies?: number;
+  boss?: boolean;
 }
 
 export interface BattleRewards {
@@ -187,6 +195,7 @@ export interface BattleRewards {
   newArena: Arena | null;
   levelUp: number | null;
   questsDone: string[];
+  boss: boolean;
 }
 
 export function recordBattle(s: BattleStats): BattleRewards {
@@ -215,15 +224,16 @@ export function recordBattle(s: BattleStats): BattleRewards {
     st.streak++;
     st.bestStreak = Math.max(st.bestStreak, st.streak);
     bumpQuest('win', 1, 'add');
+    if (s.boss) bumpQuest('boss', 1, 'add');
     xp = 20;
     coins = 8 + beforeArena.index * 3 + Math.min(st.streak, 5) * 2;
     if (s.ranked) {
       const diff = (s.opponentTrophies ?? profile.trophies) - profile.trophies;
-      trophies = Math.max(24, Math.min(36, Math.round(30 + diff / 25)));
+      trophies = Math.max(24, Math.min(36, Math.round(30 + diff / 25))) + (s.boss ? 15 : 0);
       const slot = profile.chests.findIndex((c) => !c);
       if (slot >= 0) {
-        chest = CHEST_CYCLE[profile.chestCycle % CHEST_CYCLE.length];
-        profile.chestCycle++;
+        chest = s.boss ? (beforeArena.index >= 6 ? 'magic' : 'gold') : CHEST_CYCLE[profile.chestCycle % CHEST_CYCLE.length];
+        if (!s.boss) profile.chestCycle++;
         profile.chests[slot] = { type: chest, readyAt: null };
       } else slotsFull = true;
     }
@@ -237,6 +247,7 @@ export function recordBattle(s: BattleStats): BattleRewards {
       trophies = -Math.min(Math.max(0, profile.trophies - floor), 18);
     }
   }
+  if (s.ranked) profile.arenaBattles[beforeArena.id] = (profile.arenaBattles[beforeArena.id] ?? 0) + 1;
   profile.trophies += trophies;
   profile.bestTrophies = Math.max(profile.bestTrophies, profile.trophies);
   profile.coins += coins;
@@ -259,13 +270,8 @@ export function recordBattle(s: BattleStats): BattleRewards {
     newArena: afterArena.index > beforeArena.index ? afterArena : null,
     levelUp: level > beforeLevel ? level : null,
     questsDone,
+    boss: !!s.boss,
   };
-}
-
-export function recordAdventureClear(): void {
-  bumpQuest('adventure', 1, 'add');
-  profile.xp += 15;
-  save();
 }
 
 // ------------------------------------------------------------------ chests

@@ -1,11 +1,11 @@
-import type { Difficulty } from '@mbm/engine';
 import { audio } from '../audio.ts';
-import { CAST } from '../game/characters.ts';
-import { ARENAS } from '../meta/arenas.ts';
+import type { Character } from '../game/characters.ts';
+import { ARENAS, BOSS_EVERY, bossOf } from '../meta/arenas.ts';
 import { arena, buy, buySkin, canAfford, equipSkin, levelInfo, profile, save } from '../meta/profile.ts';
 import { CHESTS, SKINS, dailyOffers, skinById } from '../meta/rewards.ts';
 import { Hero, LINES, pick } from '../render/hero.ts';
-import { progress, saveSettings, settings } from '../storage.ts';
+import { drawStage } from '../render/stage.ts';
+import { saveSettings, settings } from '../storage.ts';
 import { openChestModal } from './chest.ts';
 import { ICONS, button, chestSvg, el, fmt, fmtTime, heroCanvas, modal, price, robotCanvas, svg, toast } from './components.ts';
 import type { Home } from './home.ts';
@@ -112,44 +112,49 @@ function skinDetail(home: Home, id: string): void {
   ]);
 }
 
-// ------------------------------------------------------------------ adventure
+// ------------------------------------------------------------------ arenas
 
-let advDifficulty: Difficulty = 'normal';
-
-export function adventureTab(home: Home): HTMLElement {
-  if (settings.difficulty) advDifficulty = settings.difficulty;
-  const seg = el('div', { class: 'seg' });
-  (['easy', 'normal', 'hard', 'hardest'] as Difficulty[]).forEach((d) => {
-    const b = el('button', { type: 'button', class: d === advDifficulty ? 'on' : '' }, d[0].toUpperCase() + d.slice(1));
-    b.addEventListener('click', () => {
-      advDifficulty = d;
-      settings.difficulty = d;
-      saveSettings();
-      home.render();
-    });
-    seg.append(b);
-  });
-  const reached = progress.scenario[advDifficulty];
-  const nodes = CAST.map((c, i) => {
-    const locked = i > reached;
-    const cleared = i < reached;
-    const face = el('div', { class: 'face' }, robotCanvas(c, cleared ? 'ko' : 'idle', 76));
-    const node = el('div', { class: `adv-node ${locked ? 'locked' : ''} ${i === reached ? 'current' : ''}` }, face, el('div', { class: 'label' }, el('b', { class: 'outline' }, `${i + 1}. ${locked ? '???' : c.name}`), el('small', {}, cleared ? '✓ Cleared' : locked ? 'Locked' : c.title)));
-    node.addEventListener('click', () => {
-      if (locked) return toast('Beat the stage before it first!');
-      audio.sfx('select');
-      home.flows.adventure(i, advDifficulty);
-    });
-    return node;
+/** Every arena on the trophy ladder, with the robots and the boss you meet there. */
+export function arenasTab(home: Home): HTMLElement {
+  const here = arena();
+  const cards = ARENAS.map((x) => {
+    const locked = profile.bestTrophies < x.trophies && x.index > here.index;
+    const current = x.id === here.id;
+    const scene = el('canvas', { class: 'arena-thumb' });
+    scene.width = 360;
+    scene.height = 140;
+    drawStage(scene.getContext('2d')!, x.scene, 360, 140, 1.5);
+    const boss = bossOf(x);
+    const face = (c: Character, big: boolean): HTMLElement => {
+      const cv = robotCanvas(c, 'idle', big ? 84 : 56);
+      return el('div', { class: `arena-face${big ? ' boss' : ''}${locked ? ' locked' : ''}` }, cv, el('small', { class: 'outline' }, locked && big ? '???' : c.name));
+    };
+    const played = profile.arenaBattles[x.id] ?? 0;
+    const status = current
+      ? el('span', { class: 'tag hot' }, 'You are here')
+      : locked
+        ? el('span', { class: 'tag locked' }, svg(ICONS.lock), `${fmt(x.trophies)}`)
+        : el('span', { class: 'tag' }, '✓ Unlocked');
+    return el(
+      'div',
+      { class: `arena-row${current ? ' current' : ''}${locked ? ' locked' : ''}`, style: `--a1:${x.colors[0]};--a2:${x.colors[1]}` },
+      el('div', { class: 'arena-banner' }, scene, el('div', { class: 'arena-banner-text' }, el('b', { class: 'outline' }, `${x.index + 1}. ${x.name}`), el('span', { class: 'outline' }, svg(ICONS.trophy), fmt(x.trophies))), status),
+      el(
+        'div',
+        { class: 'arena-cast' },
+        face(boss, true),
+        el('div', { class: 'arena-minions' }, ...x.minions.map((m) => face(m, false))),
+      ),
+      el('small', { class: 'arena-note' }, locked ? `Reach ${fmt(x.trophies)} trophies to unlock.` : `Boss ${boss.name} shows up every ${BOSS_EVERY} battles · ${fmt(played)} played here`),
+    );
   });
   return el(
     'div',
     { class: 'page' },
-    el('div', { class: 'page-title outline' }, 'Adventure'),
-    el('p', { class: 'center muted' }, 'Professor Grimgear is turning the beans of Beanbury into robots. Stop his 12 machines, then the Professor himself!'),
-    seg,
-    el('p', { class: 'center muted', style: 'font-size:13px' }, 'Difficulty sets how fast the beans fall, just like the original.'),
-    el('div', { class: 'adv-path' }, ...nodes),
+    el('div', { class: 'page-title outline' }, 'Arenas'),
+    el('p', { class: 'center muted' }, `Win battles to earn trophies and climb to new arenas. Each one has its own robots, and its boss challenges you every ${BOSS_EVERY} battles for a big chest.`),
+    button('Trophy Road', { cls: 'btn-gold', icon: ICONS.road, onClick: () => home.road() }),
+    ...cards,
   );
 }
 

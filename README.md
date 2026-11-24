@@ -9,10 +9,10 @@ Professor Grimgear has built a Bean Machine to turn the beans of Beanbury into r
 ## What's in it
 
 - **Exact original rules.** Every timing and table (fall speeds, lock delay, scoring, 70 points per refugee, 30-per-turn drops, no offsetting, the death square, the rotation kicks) comes from the 1993 game's disassembly. See [docs/MECHANICS.md](docs/MECHANICS.md). Only the rules are classic; the look and sound are modern.
-- **One-tap play, Clash-style home.** A big BATTLE button matches you with a robot from your arena. Win trophies to climb 11 arenas, earn chests that unlock over time, open them for coins, gems and skins, finish daily quests, collect Trophy Road rewards, and spend in a daily shop. Everything you earn is cosmetic or currency: matches are always fair.
+- **One-tap play, Clash-style home.** A big BATTLE button matches you with a robot from your arena. Win trophies to climb 13 themed arenas (meadow, junkyard, pirate cove, frosty peaks, candy factory, lava forge and more), each with its own three robots and a boss who challenges you every fourth battle for a bigger chest. Earn chests that unlock over time, open them for coins, gems and skins, finish daily quests, collect Trophy Road rewards, and spend in a daily shop. Everything you earn is cosmetic or currency: matches are always fair.
 - **Sprout, animated.** A vector character with squash and stretch, a bouncy leaf, blinking, eyebrows and moods (cheering on chains, sweating when the stack is high, flinching when refugees land, sulking when he loses), speech bubbles with his own voice, and 8 skins (Ninja, Captain, Astro, King, Blaze…).
-- **Modes:** ranked battles, online battles and private rooms (best of 1–7), Adventure (13 story stages, 4 difficulties), two players on one device, endless practice.
-- **Modern presentation:** sharp at any screen resolution, glossy jelly beans with faces, animated arena backdrops, glowing effects, a synthesised soundtrack (9 tracks) with chain shouts. Landscape layout on desktop, portrait layout with swipe controls on phones.
+- **Modes:** ranked battles, online battles and private rooms (best of 1–7), two players on one device, endless practice. Everyone plays on the same standard board: no difficulty or handicap menus.
+- **Modern presentation:** sharp at any screen resolution, glossy jelly beans with faces, animated arena backdrops, glowing effects, a light synthesised soundtrack (9 tracks) and juicy sound effects: pops that climb the scale with each chain step, coin clinks, chest fanfares. Landscape layout on desktop, portrait layout with swipe controls on phones.
 
 ## Play locally
 

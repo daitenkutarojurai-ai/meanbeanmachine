@@ -781,71 +781,170 @@ h3 {
   height: 20px;
 }
 
-/* ---------------------------------------------------------------- adventure map */
+/* ---------------------------------------------------------------- arenas */
 
-.adv-path {
-  position: relative;
+.arena-row {
+  border-radius: 22px;
+  border: 3px solid var(--ink);
+  background: linear-gradient(var(--a2), #1a1240);
+  box-shadow: 0 5px 0 var(--ink);
+  overflow: hidden;
   display: flex;
   flex-direction: column;
-  gap: 18px;
-  padding: 10px 0 30px;
 }
 
-.adv-node {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  width: 78%;
-  cursor: pointer;
+.arena-row.current {
+  border-color: var(--gold);
+  box-shadow: 0 5px 0 var(--ink), 0 0 0 4px rgba(255, 210, 58, 0.45);
 }
 
-.adv-node:nth-child(even) {
-  align-self: flex-end;
-  flex-direction: row-reverse;
-  text-align: right;
+.arena-row.locked .arena-thumb {
+  filter: grayscale(0.35) brightness(0.8);
 }
 
-.adv-node .face {
-  width: 76px;
-  height: 76px;
-  flex: none;
-  border-radius: 20px;
-  border: 3px solid var(--ink);
-  overflow: hidden;
-  box-shadow: 0 4px 0 var(--ink);
-  background: #2a3a8a;
+.arena-banner {
+  position: relative;
+  height: 96px;
 }
 
-.adv-node .face canvas {
+.arena-thumb {
   width: 100%;
   height: 100%;
   display: block;
+  object-fit: cover;
 }
 
-.adv-node.locked {
-  opacity: 0.55;
-  cursor: default;
+.arena-banner-text {
+  position: absolute;
+  left: 12px;
+  bottom: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
 }
 
-.adv-node.locked .face canvas {
-  filter: brightness(0.2);
-}
-
-.adv-node.current .face {
-  border-color: var(--gold);
-  box-shadow: 0 4px 0 var(--ink), 0 0 0 4px rgba(255, 210, 58, 0.5);
-  animation: bob 1.2s ease-in-out infinite;
-}
-
-.adv-node .label b {
-  display: block;
+.arena-banner-text b {
   font-family: var(--display);
   font-weight: 400;
-  font-size: 18px;
+  font-size: 22px;
 }
 
-.adv-node .label small {
+.arena-banner-text span {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-family: var(--display);
+  font-size: 15px;
+}
+
+.arena-banner-text svg {
+  width: 18px;
+  height: 18px;
+}
+
+.arena-banner > .tag {
+  position: absolute;
+  right: 10px;
+  top: 10px;
+}
+
+.tag.locked {
+  background: rgba(255, 255, 255, 0.9);
+  color: var(--ink);
+}
+
+.tag.hot {
+  background: var(--gold);
+  color: var(--ink);
+  animation: throb 1.4s ease-in-out infinite;
+}
+
+.arena-cast {
+  display: flex;
+  align-items: flex-end;
+  gap: 10px;
+  padding: 10px 12px 4px;
+}
+
+.arena-minions {
+  display: flex;
+  gap: 8px;
+  flex: 1;
+  justify-content: space-evenly;
+}
+
+.arena-face {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  min-width: 0;
+}
+
+.arena-face canvas {
+  width: 56px;
+  height: 56px;
+  border-radius: 14px;
+  border: 3px solid var(--ink);
+  display: block;
+}
+
+.arena-face.boss canvas {
+  width: 84px;
+  height: 84px;
+  border-radius: 18px;
+  border-color: var(--gold);
+}
+
+.arena-face.boss::before {
+  content: 'BOSS';
+  font-family: var(--display);
+  font-size: 12px;
+  color: var(--ink);
+  background: var(--gold);
+  border: 2px solid var(--ink);
+  border-radius: 8px;
+  padding: 0 6px;
+  margin-bottom: -8px;
+  z-index: 1;
+}
+
+.arena-face.locked canvas {
+  filter: brightness(0.15);
+}
+
+.arena-face small {
+  font-size: 11px;
+  max-width: 84px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.arena-note {
+  padding: 2px 12px 10px;
   color: var(--muted);
+  font-size: 12px;
+}
+
+.boss-hint {
+  align-self: center;
+  font-family: var(--display);
+  font-size: 15px;
+  padding: 4px 14px;
+  border-radius: 12px;
+  background: rgba(0, 0, 0, 0.4);
+  border: 2px solid rgba(255, 255, 255, 0.15);
+}
+
+.boss-hint.now {
+  background: linear-gradient(#ff8a96, #e02a44);
+  border-color: var(--ink);
+  animation: throb 1.2s ease-in-out infinite;
+}
+
+.boss-pulse {
+  animation: throb 1.2s ease-in-out infinite;
 }
 
 .seg {
@@ -1218,6 +1317,12 @@ input[type='range'] {
 @keyframes bob {
   50% {
     transform: translateY(-4px);
+  }
+}
+
+@keyframes throb {
+  50% {
+    transform: scale(1.05);
   }
 }
 
