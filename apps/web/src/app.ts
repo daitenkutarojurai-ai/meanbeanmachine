@@ -1,6 +1,7 @@
 import { audio } from './audio.ts';
 import { Input, isTouchDevice } from './input.ts';
 import { BattleRenderer } from './render/battleRenderer.ts';
+import { setBeanSymbols } from './render/jelly.ts';
 import { settings } from './storage.ts';
 import { TouchControls } from './touch.ts';
 
@@ -50,6 +51,7 @@ export class App {
     this.renderer = new BattleRenderer(this.canvas);
     this.touch = new TouchControls(this.canvas, this.renderer);
     audio.setVolumes(settings.sfx, settings.music);
+    setBeanSymbols(settings.symbols);
     const unlock = (): void => audio.unlock();
     window.addEventListener('pointerdown', unlock);
     window.addEventListener('keydown', unlock);

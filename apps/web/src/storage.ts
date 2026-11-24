@@ -6,6 +6,8 @@ export interface Settings {
   games: number;
   touch: 'auto' | 'on' | 'off';
   crt: boolean;
+  /** Colour-blind mode: a shape on every bean. */
+  symbols: boolean;
 }
 
 export interface Progress {
@@ -22,6 +24,7 @@ const DEFAULT_SETTINGS: Settings = {
   games: 3,
   touch: 'auto',
   crt: false,
+  symbols: false,
 };
 
 const DEFAULT_PROGRESS: Progress = {

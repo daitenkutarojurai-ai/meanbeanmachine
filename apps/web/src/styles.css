@@ -925,6 +925,17 @@ h3 {
   font-size: 12px;
 }
 
+.bean-sample {
+  display: flex;
+  justify-content: center;
+  gap: 6px;
+}
+
+.bean-sample canvas {
+  width: 36px;
+  height: 36px;
+}
+
 /* ------------------------------------------------------------ trophy road */
 
 .road {

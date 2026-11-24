@@ -5,6 +5,7 @@ import { arena, buy, buySkin, canAfford, equipSkin, levelInfo, profile, save } f
 import { CHESTS, SKINS, dailyOffers, skinById } from '../meta/rewards.ts';
 import { Hero, LINES, pick } from '../render/hero.ts';
 import { canPromptInstall, isInstalled, isIos, promptInstall } from '../pwa.ts';
+import { jellyAt, setBeanSymbols } from '../render/jelly.ts';
 import { drawStage } from '../render/stage.ts';
 import { saveSettings, settings } from '../storage.ts';
 import { openChestModal } from './chest.ts';
@@ -199,6 +200,22 @@ export function profileTab(home: Home): HTMLElement {
     });
     controls.append(b);
   });
+  const symbols = el('div', { class: 'seg' });
+  ([[false, 'Colours'], [true, 'Colours + shapes']] as const).forEach(([v, label]) => {
+    const b = el('button', { type: 'button', class: settings.symbols === v ? 'on' : '' }, label);
+    b.addEventListener('click', () => {
+      settings.symbols = v;
+      setBeanSymbols(v);
+      saveSettings();
+      home.render();
+    });
+    symbols.append(b);
+  });
+  const sample = el('div', { class: 'bean-sample', ariaHidden: 'true' }, ...[1, 2, 3, 4, 5].map((c) => {
+    const cv = el('canvas', { width: 72, height: 72 });
+    cv.getContext('2d')!.drawImage(jellyAt(c, 72), 0, 0);
+    return cv;
+  }));
   const a = arena();
   return el(
     'div',
@@ -211,6 +228,9 @@ export function profileTab(home: Home): HTMLElement {
       slider('Music', () => settings.music, (v) => (settings.music = v)),
       el('span', {}, 'Touch controls'),
       controls,
+      el('span', {}, 'Beans (colour-blind friendly)'),
+      symbols,
+      sample,
     ),
     el('div', { class: 'grid2' }, button('Trophy Road', { cls: 'btn-gold', icon: ICONS.road, onClick: () => home.road() }), button('Quests', { cls: 'btn-blue', icon: ICONS.scroll, onClick: () => home.quests() })),
     button('How to play', { cls: 'btn-blue', onClick: () => howTo() }),

@@ -23,6 +23,55 @@ export const beanCss = (c: number): string => JELLY[c]?.base ?? '#fff';
 
 const cache = new Map<string, HTMLCanvasElement>();
 let cachedSize = 0;
+let symbols = false;
+
+/** Colour-blind mode: every colour also gets its own shape. */
+export function setBeanSymbols(on: boolean): void {
+  symbols = on;
+  cache.clear();
+  extra.clear();
+}
+
+function glyph(g: CanvasRenderingContext2D, color: number, x: number, y: number, r: number): void {
+  g.beginPath();
+  switch (color) {
+    case 1:
+      g.arc(x, y, r * 0.8, 0, Math.PI * 2);
+      break;
+    case 2:
+      g.moveTo(x, y - r);
+      g.lineTo(x + r * 0.95, y + r * 0.7);
+      g.lineTo(x - r * 0.95, y + r * 0.7);
+      g.closePath();
+      break;
+    case 3:
+      g.rect(x - r * 0.72, y - r * 0.72, r * 1.44, r * 1.44);
+      break;
+    case 4:
+      g.moveTo(x, y - r);
+      g.lineTo(x + r * 0.8, y);
+      g.lineTo(x, y + r);
+      g.lineTo(x - r * 0.8, y);
+      g.closePath();
+      break;
+    case 5:
+      for (let i = 0; i < 10; i++) {
+        const a = -Math.PI / 2 + (i * Math.PI) / 5;
+        const rr = i % 2 ? r * 0.45 : r;
+        g.lineTo(x + Math.cos(a) * rr, y + Math.sin(a) * rr);
+      }
+      g.closePath();
+      break;
+    default:
+      return;
+  }
+  g.fillStyle = '#ffffff';
+  g.strokeStyle = 'rgba(20,10,40,0.85)';
+  g.lineWidth = Math.max(1, r * 0.3);
+  g.lineJoin = 'round';
+  g.stroke();
+  g.fill();
+}
 
 function eyes(g: CanvasRenderingContext2D, s: number, style: EyeStyle, ink: string, lid: string): void {
   const ey = s * 0.47;
@@ -153,6 +202,7 @@ function render(color: number, s: number, eyesStyle: EyeStyle, flash: boolean): 
   g.fill();
   eyes(g, s, eyesStyle, garbage ? '#3a4260' : '#1a1024', col.base);
   mouth(g, s, eyesStyle, garbage ? '#3a4260' : '#1a1024');
+  if (symbols && !garbage) glyph(g, color, s * 0.5, s * 0.19, s * 0.13);
   if (flash) {
     g.globalCompositeOperation = 'source-atop';
     g.fillStyle = 'rgba(255,255,255,0.72)';
