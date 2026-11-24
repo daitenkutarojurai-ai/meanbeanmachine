@@ -1,6 +1,7 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "bean-machine",
+  "account_id": "caf438f4fcf0c1a3aa695076fc6e53d8",
   "main": "apps/server/src/worker.ts",
   "compatibility_date": "2026-10-01",
   "assets": {
